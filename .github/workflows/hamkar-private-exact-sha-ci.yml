@@ -1,0 +1,232 @@
+name: HamKar private exact SHA CI proxy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Exact HamKar-erp commit SHA to test
+        required: true
+        type: string
+      target_label:
+        description: Human label, for example UI-B7 or UI-C5
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hamkar-private-ci-${{ github.event.inputs.target_ref }}
+  cancel-in-progress: false
+
+jobs:
+  postgres-orm-smoke:
+    name: PostgreSQL 18, Node and Chromium smoke from private SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18
+        env:
+          POSTGRES_USER: hamkar_test
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: hamkar_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hamkar_test -d hamkar_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      HAMKAR_PROXY_JOB: postgres-orm-smoke
+      HAMKAR_TEST_POSTGRES_URL: postgresql+psycopg://hamkar_test:synthetic_ci_only@127.0.0.1:5432/hamkar_ci
+    steps:
+      - name: Checkout private HamKar ERP at exact SHA
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          ref: ${{ inputs.target_ref }}
+          path: hamkar
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact target SHA
+        run: |
+          set -euo pipefail
+          test "${{ inputs.target_ref }}" = "$(git -C hamkar rev-parse HEAD)"
+          git -C hamkar remote remove origin || true
+          echo "TARGET_LABEL=${{ inputs.target_label }}"
+          echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute private workflow run steps for postgres job
+        run: |
+          set -euo pipefail
+          python -m pip install --retries 0 --timeout 10 'PyYAML>=6,<7'
+          cat > "$RUNNER_TEMP/run_private_workflow_job.py" <<'PY'
+          import os, subprocess, sys
+          from pathlib import Path
+          import yaml
+
+          root = Path('hamkar')
+          workflow = yaml.safe_load((root / '.github/workflows/postgres-orm-safety.yml').read_text())
+          job_name = os.environ['HAMKAR_PROXY_JOB']
+          job = workflow['jobs'][job_name]
+          env = os.environ.copy()
+          for key, value in (job.get('env') or {}).items():
+              env[str(key)] = str(value).replace('${{ runner.temp }}', env['RUNNER_TEMP'])
+          executed = 0
+          skipped = 0
+          for step in job.get('steps', []):
+              name = step.get('name') or step.get('uses') or 'unnamed step'
+              if 'run' not in step:
+                  print(f'::notice title=Skipped non-run step::{name}', flush=True)
+                  skipped += 1
+                  continue
+              step_env = env.copy()
+              for key, value in (step.get('env') or {}).items():
+                  step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
+              print(f'::group::{name}', flush=True)
+              proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
+              print('::endgroup::', flush=True)
+              if proc.returncode:
+                  raise SystemExit(proc.returncode)
+              executed += 1
+          print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
+          PY
+          python "$RUNNER_TEMP/run_private_workflow_job.py"
+      - name: Attach private workflow artifacts visible to this proxy job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-private-proxy-postgres-artifacts
+          path: |
+            ${{ runner.temp }}/hamkar-pg-ui
+            ${{ runner.temp }}/hamkar-phase3-synthetic-drill-evidence.json
+            ${{ runner.temp }}/hamkar-postgres-only-candidate.zip
+          if-no-files-found: warn
+
+  phase3-external-monitoring-e2e:
+    name: Monitoring E2E from private SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      HAMKAR_PROXY_JOB: phase3-external-monitoring-e2e
+    steps:
+      - name: Checkout private HamKar ERP at exact SHA
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          ref: ${{ inputs.target_ref }}
+          path: hamkar
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact target SHA
+        run: |
+          set -euo pipefail
+          test "${{ inputs.target_ref }}" = "$(git -C hamkar rev-parse HEAD)"
+          git -C hamkar remote remove origin || true
+          echo "TARGET_LABEL=${{ inputs.target_label }}"
+          echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute private workflow run steps for monitoring job
+        run: |
+          set -euo pipefail
+          python -m pip install --retries 0 --timeout 10 'PyYAML>=6,<7'
+          cat > "$RUNNER_TEMP/run_private_workflow_job.py" <<'PY'
+          import os, subprocess
+          from pathlib import Path
+          import yaml
+          root = Path('hamkar')
+          workflow = yaml.safe_load((root / '.github/workflows/postgres-orm-safety.yml').read_text())
+          job_name = os.environ['HAMKAR_PROXY_JOB']
+          job = workflow['jobs'][job_name]
+          env = os.environ.copy()
+          for key, value in (job.get('env') or {}).items():
+              env[str(key)] = str(value).replace('${{ runner.temp }}', env['RUNNER_TEMP'])
+          executed = skipped = 0
+          for step in job.get('steps', []):
+              name = step.get('name') or step.get('uses') or 'unnamed step'
+              if 'run' not in step:
+                  print(f'::notice title=Skipped non-run step::{name}', flush=True)
+                  skipped += 1
+                  continue
+              step_env = env.copy()
+              for key, value in (step.get('env') or {}).items():
+                  step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
+              print(f'::group::{name}', flush=True)
+              proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
+              print('::endgroup::', flush=True)
+              if proc.returncode:
+                  raise SystemExit(proc.returncode)
+              executed += 1
+          print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
+          PY
+          python "$RUNNER_TEMP/run_private_workflow_job.py"
+
+  phase3-11task-synthetic-convergence:
+    name: 605 accepted tests and convergence from private SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAMKAR_PROXY_JOB: phase3-11task-synthetic-convergence
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout private HamKar ERP at exact SHA
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          ref: ${{ inputs.target_ref }}
+          path: hamkar
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact target SHA
+        run: |
+          set -euo pipefail
+          test "${{ inputs.target_ref }}" = "$(git -C hamkar rev-parse HEAD)"
+          git -C hamkar remote remove origin || true
+          echo "TARGET_LABEL=${{ inputs.target_label }}"
+          echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute private workflow run steps for convergence job
+        run: |
+          set -euo pipefail
+          python -m pip install --retries 0 --timeout 10 'PyYAML>=6,<7'
+          cat > "$RUNNER_TEMP/run_private_workflow_job.py" <<'PY'
+          import os, subprocess
+          from pathlib import Path
+          import yaml
+          root = Path('hamkar')
+          workflow = yaml.safe_load((root / '.github/workflows/postgres-orm-safety.yml').read_text())
+          job_name = os.environ['HAMKAR_PROXY_JOB']
+          job = workflow['jobs'][job_name]
+          env = os.environ.copy()
+          for key, value in (job.get('env') or {}).items():
+              env[str(key)] = str(value).replace('${{ runner.temp }}', env['RUNNER_TEMP'])
+          executed = skipped = 0
+          for step in job.get('steps', []):
+              name = step.get('name') or step.get('uses') or 'unnamed step'
+              if 'run' not in step:
+                  print(f'::notice title=Skipped non-run step::{name}', flush=True)
+                  skipped += 1
+                  continue
+              step_env = env.copy()
+              for key, value in (step.get('env') or {}).items():
+                  step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
+              print(f'::group::{name}', flush=True)
+              proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
+              print('::endgroup::', flush=True)
+              if proc.returncode:
+                  raise SystemExit(proc.returncode)
+              executed += 1
+          print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
+          PY
+          python "$RUNNER_TEMP/run_private_workflow_job.py"

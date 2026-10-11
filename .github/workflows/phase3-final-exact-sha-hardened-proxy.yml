@@ -490,6 +490,8 @@ jobs:
           job_name = os.environ['HAMKAR_PROXY_JOB']
           job = workflow['jobs'][job_name]
           env = os.environ.copy()
+          # Private workflow GITHUB_SHA follows the exact verified checkout.
+          env['GITHUB_SHA'] = 'c998c257ca54cebd36dff7783ca0e8ee348f7d7d'
           # Never expose workflow/Actions runtime tokens to private scripts.
           for key in list(env):
               if (key.endswith('_TOKEN') or key.startswith('ACTIONS_RUNTIME_')
@@ -694,6 +696,8 @@ jobs:
           job_name = os.environ['HAMKAR_PROXY_JOB']
           job = workflow['jobs'][job_name]
           env = os.environ.copy()
+          # Private workflow GITHUB_SHA follows the exact verified checkout.
+          env['GITHUB_SHA'] = 'c998c257ca54cebd36dff7783ca0e8ee348f7d7d'
           # Never expose workflow/Actions runtime tokens to private scripts.
           for key in list(env):
               if (key.endswith('_TOKEN') or key.startswith('ACTIONS_RUNTIME_')
@@ -897,6 +901,8 @@ jobs:
           job_name = os.environ['HAMKAR_PROXY_JOB']
           job = workflow['jobs'][job_name]
           env = os.environ.copy()
+          # Private workflow GITHUB_SHA follows the exact verified checkout.
+          env['GITHUB_SHA'] = 'c998c257ca54cebd36dff7783ca0e8ee348f7d7d'
           # Never expose workflow/Actions runtime tokens to private scripts.
           for key in list(env):
               if (key.endswith('_TOKEN') or key.startswith('ACTIONS_RUNTIME_')

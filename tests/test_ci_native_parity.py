@@ -11,7 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/phase3-final-exact-sha-hardened-proxy.yml'
-TARGET = 'c998c257ca54cebd36dff7783ca0e8ee348f7d7d'
+TARGET = '0ea866a580959e468c2fe6cf906920220c29f857'
 JOBS = ('postgres-orm-smoke', 'phase3-external-monitoring-e2e',
         'ui-d-specialist-605', 'ui-d-pg18-chromium', 'ui-d-static')
 MARK = 'SYNTHETIC_LOG_SENTINEL_92940_NOT_SECRET'

@@ -6,6 +6,7 @@ on:
       - work/security-manual-proxy-no-public-artifacts-v1
       - work/security-helper-integration-hardening-on-ec6184-v1
       - work/phase3-native-ci-security-parity-on-eebe-v1
+      - work/phase3-pr61-exact-sha-final-qa-v1
 
 permissions:
   contents: read

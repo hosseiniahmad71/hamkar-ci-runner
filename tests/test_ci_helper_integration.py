@@ -201,6 +201,47 @@ class SyntheticRunnerTests(unittest.TestCase):
                     self.assertEqual(result.returncode, expected)
                     self.assertFalse((Path(td) / 'INJECTED').exists())
 
+    def test_exact_checked_out_sha_and_residual_auth_header_refused(self):
+        # No network, no private checkout, synthetic git repository only.
+        script = self.workflow['jobs'][JOBS[0]]['steps'][2]['run']
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / 'hamkar'
+            subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+            subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Fixture',
+                            '-c', 'user.email=fixture@example.invalid', 'commit',
+                            '--allow-empty', '-qm', 'synthetic'], check=True)
+            head = subprocess.check_output(['git', '-C', str(repo),
+                                            'rev-parse', 'HEAD'], text=True).strip()
+            good = subprocess.run(['bash', '-c', script], cwd=tmp,
+                                  env={**os.environ, 'TARGET_SHA_INPUT': head},
+                                  text=True, capture_output=True, timeout=4)
+            self.assertEqual(good.returncode, 0, good.stdout + good.stderr)
+            wrong = subprocess.run(['bash', '-c', script], cwd=tmp,
+                                   env={**os.environ, 'TARGET_SHA_INPUT': 'f' * 40},
+                                   text=True, capture_output=True, timeout=4)
+            self.assertNotEqual(wrong.returncode, 0)
+            subprocess.run(['git', '-C', str(repo), 'config', '--local',
+                            'http.https://github.com/.extraheader',
+                            'Authorization: synthetic-only-value'], check=True)
+            contaminated = subprocess.run(
+                ['bash', '-c', script], cwd=tmp,
+                env={**os.environ, 'TARGET_SHA_INPUT': head},
+                text=True, capture_output=True, timeout=4)
+            self.assertNotEqual(contaminated.returncode, 0)
+            self.assertNotIn('synthetic-only-value',
+                             contaminated.stdout + contaminated.stderr)
+
+    def test_symlink_at_internal_github_env_target_refused(self):
+        def setup(home):
+            (home / 'runner_temp/hamkar-proxy-internal-env').symlink_to(
+                home / 'github_env_from_real_runner')
+        for name in JOBS:
+            result, ran, outer = self.run_case(
+                name, [{'run': 'touch ../next_step'}], setup=setup)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(ran)
+            self.assertEqual(outer, 'OUTER_VARIABLE=untouched\n')
+
     def test_public_artefact_and_checkout_contract(self):
         source = WORKFLOW.read_text()
         self.assertNotIn('actions/upload-artifact@', source)

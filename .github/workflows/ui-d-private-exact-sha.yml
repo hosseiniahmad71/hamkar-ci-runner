@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: hamkar-uid-exclusive-proxy
+  group: hamkar-uid-proxy-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -21,14 +21,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '2933565935a61d263635e4f91d97ddbfa55e4474'
+          ref: '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '2933565935a61d263635e4f91d97ddbfa55e4474'
+          test "$(git -C hamkar rev-parse HEAD)" = '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:
@@ -69,14 +69,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '2933565935a61d263635e4f91d97ddbfa55e4474'
+          ref: '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '2933565935a61d263635e4f91d97ddbfa55e4474'
+          test "$(git -C hamkar rev-parse HEAD)" = '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:
@@ -117,14 +117,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '2933565935a61d263635e4f91d97ddbfa55e4474'
+          ref: '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '2933565935a61d263635e4f91d97ddbfa55e4474'
+          test "$(git -C hamkar rev-parse HEAD)" = '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:
@@ -183,14 +183,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '2933565935a61d263635e4f91d97ddbfa55e4474'
+          ref: '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '2933565935a61d263635e4f91d97ddbfa55e4474'
+          test "$(git -C hamkar rev-parse HEAD)" = '8c6ba7e24971c26b837ad8aca9f20ee7957c2a98'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:

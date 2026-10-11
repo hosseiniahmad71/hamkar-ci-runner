@@ -91,6 +91,20 @@ jobs:
               step_env = env.copy()
               for key, value in (step.get('env') or {}).items():
                   step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
+              # Evidence must live in a dedicated, operator-owned 0700
+              # directory. Never weaken the recovery evidence publisher.
+              if 'HAMKAR_CI_EVIDENCE_OUTPUT' in step_env:
+                  target_name = Path(step_env['HAMKAR_CI_EVIDENCE_OUTPUT']).name
+                  if target_name != 'hamkar-phase3-synthetic-drill-evidence.json':
+                      raise SystemExit('unrecognized synthetic evidence output')
+                  private_dir = Path(env['RUNNER_TEMP']) / 'hamkar-proxy-private-evidence'
+                  private_dir.mkdir(mode=0o700, exist_ok=True)
+                  info = private_dir.lstat()
+                  import stat
+                  if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+                          or stat.S_IMODE(info.st_mode) != 0o700):
+                      raise SystemExit('unsafe synthetic evidence directory')
+                  step_env['HAMKAR_CI_EVIDENCE_OUTPUT'] = str(private_dir / target_name)
               print(f'::group::{name}', flush=True)
               proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
               print('::endgroup::', flush=True)
@@ -122,7 +136,7 @@ jobs:
           name: hamkar-private-proxy-postgres-artifacts
           path: |
             ${{ runner.temp }}/hamkar-pg-ui
-            ${{ runner.temp }}/hamkar-phase3-synthetic-drill-evidence.json
+            ${{ runner.temp }}/hamkar-proxy-private-evidence/hamkar-phase3-synthetic-drill-evidence.json
             ${{ runner.temp }}/hamkar-postgres-only-candidate.zip
           if-no-files-found: warn
 

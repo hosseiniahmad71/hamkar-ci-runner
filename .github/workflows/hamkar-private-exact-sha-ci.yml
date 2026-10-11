@@ -160,7 +160,7 @@ jobs:
                           raise SystemExit('unsafe nested workflow env path')
                       resolved = Path(value).resolve()
                       if key == 'HAMKAR_TEST_BROWSER':
-                          if str(resolved) != '/usr/bin/google-chrome':
+                          if value != '/usr/bin/google-chrome':
                               raise SystemExit('unexpected browser binary path')
                       elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
                           raise SystemExit('nested workflow path escapes runner temp')
@@ -279,7 +279,7 @@ jobs:
                           raise SystemExit('unsafe nested workflow env path')
                       resolved = Path(value).resolve()
                       if key == 'HAMKAR_TEST_BROWSER':
-                          if str(resolved) != '/usr/bin/google-chrome':
+                          if value != '/usr/bin/google-chrome':
                               raise SystemExit('unexpected browser binary path')
                       elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
                           raise SystemExit('nested workflow path escapes runner temp')
@@ -399,7 +399,7 @@ jobs:
                           raise SystemExit('unsafe nested workflow env path')
                       resolved = Path(value).resolve()
                       if key == 'HAMKAR_TEST_BROWSER':
-                          if str(resolved) != '/usr/bin/google-chrome':
+                          if value != '/usr/bin/google-chrome':
                               raise SystemExit('unexpected browser binary path')
                       elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
                           raise SystemExit('nested workflow path escapes runner temp')

@@ -3,7 +3,7 @@ name: HamKar UI-D private exact-SHA no-artifact proxy
 on:
   push:
     branches:
-      - 'work/ui-d-csv-proxy-exact-v1'
+      - 'work/ui-d-finance-convergence-proxy-on-f5b9-v1'
 
 permissions:
   contents: read
@@ -21,14 +21,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '0fb1f041067113cdac11a16f91e569e3208411a5'
+          ref: 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '0fb1f041067113cdac11a16f91e569e3208411a5'
+          test "$(git -C hamkar rev-parse HEAD)" = 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:
@@ -41,6 +41,16 @@ jobs:
           node --check app/modules/07u-pg-csv-preview-ui.js
           python scripts/build_frontend_bundle.py --check
           python tests/smoke/ui_d_csv_validation_smoke.py
+          node --check tests/smoke/phase3_provider_finance_cross_contract_smoke.js
+          financial=$(timeout 25s node tests/smoke/phase3_provider_finance_cross_contract_smoke.js)
+          printf '%s\n' "$financial"
+          test "$financial" = "PHASE3_PROVIDER_FINANCE_CROSS_CONTRACT=PASS checks=15 synthetic_read_only=true operational_proof=false"
+          timeout 25s node tests/smoke/ui_b_marketplace_presentation_smoke.js
+          timeout 25s node tests/smoke/ui_b3_async_read_races_smoke.js
+          timeout 25s node tests/smoke/ui_b7_detail_tabs_state_smoke.js
+          timeout 25s node tests/smoke/ui_b7_listing_recovery_smoke.js
+          timeout 25s node tests/smoke/ui_c_order_finance_safety_smoke.js
+          timeout 25s node tests/smoke/ui_c3_order_scope_fence_smoke.js
           python tests/smoke/code_hygiene_smoke.py
           python tests/smoke/manifest_integrity_contract.py
           test "$(git rev-parse HEAD:app/frontend.bundle.js)" = "bf871429d01a235f87c5850956e35969d296bd78"
@@ -69,14 +79,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '0fb1f041067113cdac11a16f91e569e3208411a5'
+          ref: 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '0fb1f041067113cdac11a16f91e569e3208411a5'
+          test "$(git -C hamkar rev-parse HEAD)" = 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:
@@ -103,11 +113,18 @@ jobs:
           timeout 60s python tests/smoke/postgres_http_auth_boundary_smoke.py
           timeout 60s python tests/smoke/postgres_inventory_uow_smoke.py
           timeout 60s python tests/smoke/postgres_inventory_journal_guard_smoke.py
+          timeout 80s python tests/smoke/postgres_ui_c2_finance_read_only_smoke.py
+          timeout 70s python tests/smoke/postgres_operator_sessions_smoke.py
       - name: Real Chromium 390 and 1440 race retry RTL
         working-directory: hamkar
         run: |
           timeout 110s python tests/smoke/ui_d_csv_chromium_smoke.py
           timeout 150s python tests/smoke/postgres_phase2_ui_smoke.py
+          timeout 75s python tests/smoke/ui_b7_provider_detail_tabs_chromium_smoke.py
+          timeout 110s python tests/smoke/postgres_ui_c_order_finance_browser_smoke.py
+          timeout 100s python tests/smoke/postgres_ui_c3_order_scope_browser_smoke.py
+          timeout 115s python tests/smoke/postgres_cross_marketplace_catalog_browser_smoke.py
+          timeout 100s python tests/smoke/postgres_provider_orders_ui_smoke.py
 
   uid-605:
     runs-on: ubuntu-latest
@@ -117,14 +134,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '0fb1f041067113cdac11a16f91e569e3208411a5'
+          ref: 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '0fb1f041067113cdac11a16f91e569e3208411a5'
+          test "$(git -C hamkar rev-parse HEAD)" = 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:
@@ -183,14 +200,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: '0fb1f041067113cdac11a16f91e569e3208411a5'
+          ref: 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: hamkar
           fetch-depth: 0
       - name: Verify exact tested SHA
         run: |
-          test "$(git -C hamkar rev-parse HEAD)" = '0fb1f041067113cdac11a16f91e569e3208411a5'
+          test "$(git -C hamkar rev-parse HEAD)" = 'f5b9d99f7f40dacfc9cba44908ab54c3ffad0328'
           git -C hamkar remote remove origin
       - uses: actions/setup-python@v5
         with:

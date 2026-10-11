@@ -88,25 +88,44 @@ jobs:
               step_env = env.copy()
               for key, value in (step.get('env') or {}).items():
                   step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
+              # Evidence must live in a dedicated, operator-owned 0700
+              # directory. Never weaken the recovery evidence publisher.
+              if 'HAMKAR_CI_EVIDENCE_OUTPUT' in step_env:
+                  target_name = Path(step_env['HAMKAR_CI_EVIDENCE_OUTPUT']).name
+                  if target_name != 'hamkar-phase3-synthetic-drill-evidence.json':
+                      raise SystemExit('unrecognized synthetic evidence output')
+                  private_dir = Path(env['RUNNER_TEMP']) / 'hamkar-proxy-private-evidence'
+                  private_dir.mkdir(mode=0o700, exist_ok=True)
+                  info = private_dir.lstat()
+                  import stat
+                  if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+                          or stat.S_IMODE(info.st_mode) != 0o700):
+                      raise SystemExit('unsafe synthetic evidence directory')
+                  step_env['HAMKAR_CI_EVIDENCE_OUTPUT'] = str(private_dir / target_name)
               print(f'::group::{name}', flush=True)
               proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
+              # GitHub does not replay GITHUB_ENV exports between nested
+              # run steps executed as subprocesses of this one proxy step.
+              # Import only the six non-secret, documented path exports.
+              github_env = Path(env['GITHUB_ENV'])
+              if github_env.is_file():
+                  for assignment in github_env.read_text().splitlines():
+                      if not assignment:
+                          continue
+                      key, separator, value = assignment.partition('=')
+                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                      if not separator or key not in allowed:
+                          raise SystemExit('unrecognized nested workflow env export')
+                      env[key] = value
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY
           python "$RUNNER_TEMP/run_private_workflow_job.py"
-      - name: Attach private workflow artifacts visible to this proxy job
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hamkar-private-proxy-postgres-artifacts
-          path: |
-            ${{ runner.temp }}/hamkar-pg-ui
-            ${{ runner.temp }}/hamkar-phase3-synthetic-drill-evidence.json
-            ${{ runner.temp }}/hamkar-postgres-only-candidate.zip
-          if-no-files-found: warn
 
   phase3-external-monitoring-e2e:
     name: Monitoring E2E from private SHA
@@ -164,6 +183,21 @@ jobs:
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
+              # GitHub does not replay GITHUB_ENV exports between nested
+              # run steps executed as subprocesses of this one proxy step.
+              # Import only the six non-secret, documented path exports.
+              github_env = Path(env['GITHUB_ENV'])
+              if github_env.is_file():
+                  for assignment in github_env.read_text().splitlines():
+                      if not assignment:
+                          continue
+                      key, separator, value = assignment.partition('=')
+                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                      if not separator or key not in allowed:
+                          raise SystemExit('unrecognized nested workflow env export')
+                      env[key] = value
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY
@@ -226,6 +260,21 @@ jobs:
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
+              # GitHub does not replay GITHUB_ENV exports between nested
+              # run steps executed as subprocesses of this one proxy step.
+              # Import only the six non-secret, documented path exports.
+              github_env = Path(env['GITHUB_ENV'])
+              if github_env.is_file():
+                  for assignment in github_env.read_text().splitlines():
+                      if not assignment:
+                          continue
+                      key, separator, value = assignment.partition('=')
+                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                      if not separator or key not in allowed:
+                          raise SystemExit('unrecognized nested workflow env export')
+                      env[key] = value
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY

@@ -124,8 +124,7 @@ class NativeParityFixtureTests(unittest.TestCase):
             self.assertNotIn("env['GITHUB_SHA'] =", self.source(job))
 
     def test_timeout_kills_child_process_groups(self):
-        command = ('python -c "import time; time.sleep(0.75); '
-                   'open(\\'../orphan\\', \\'w\\').write(\\'x\\')" & sleep 5')
+        command = "python -c 'import time; time.sleep(0.75); open(\"../orphan\", \"w\").write(\"x\")' & sleep 5"
         for job in ('postgres-orm-smoke', 'ui-d-static'):
             p, host, marker, orphan = self.simulate(job, [
                 {'run': command, 'timeout-minutes': 1},

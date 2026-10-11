@@ -104,9 +104,20 @@ jobs:
           for step in job.get('steps', []):
               name = step.get('name') or step.get('uses') or 'unnamed step'
               if 'run' not in step:
-                  print(f'::notice title=Skipped non-run step::{name}', flush=True)
+                  action = str(step.get('uses') or '').split('@', 1)[0]
+                  if action not in {'actions/checkout', 'actions/setup-python',
+                                    'actions/upload-artifact'}:
+                      raise SystemExit('unsupported non-run step in private workflow')
+                  print(f'::warning title=Proxy skips native uses action::{name}', flush=True)
                   skipped += 1
                   continue
+              if step.get('if') not in (None, 'always()'):
+                  raise SystemExit('unsupported conditional run step')
+              if any(key in step for key in ('shell', 'working-directory', 'continue-on-error')):
+                  raise SystemExit('unsupported run step execution metadata')
+              limit = step.get('timeout-minutes')
+              if limit is not None and (type(limit) is not int or not 1 <= limit <= 15):
+                  raise SystemExit('invalid nested run step timeout')
               step_env = env.copy()
               for key, value in (step.get('env') or {}).items():
                   step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
@@ -125,7 +136,12 @@ jobs:
                       raise SystemExit('unsafe synthetic evidence directory')
                   step_env['HAMKAR_CI_EVIDENCE_OUTPUT'] = str(private_dir / target_name)
               print(f'::group::{name}', flush=True)
-              proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
+              try:
+                  proc = subprocess.run(step['run'], cwd=root, shell=True,
+                                        executable='/bin/bash', env=step_env,
+                                        timeout=limit * 60 if limit is not None else None)
+              except subprocess.TimeoutExpired:
+                  raise SystemExit('nested workflow run step timed out') from None
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
@@ -237,14 +253,30 @@ jobs:
           for step in job.get('steps', []):
               name = step.get('name') or step.get('uses') or 'unnamed step'
               if 'run' not in step:
-                  print(f'::notice title=Skipped non-run step::{name}', flush=True)
+                  action = str(step.get('uses') or '').split('@', 1)[0]
+                  if action not in {'actions/checkout', 'actions/setup-python',
+                                    'actions/upload-artifact'}:
+                      raise SystemExit('unsupported non-run step in private workflow')
+                  print(f'::warning title=Proxy skips native uses action::{name}', flush=True)
                   skipped += 1
                   continue
+              if step.get('if') not in (None, 'always()'):
+                  raise SystemExit('unsupported conditional run step')
+              if any(key in step for key in ('shell', 'working-directory', 'continue-on-error')):
+                  raise SystemExit('unsupported run step execution metadata')
+              limit = step.get('timeout-minutes')
+              if limit is not None and (type(limit) is not int or not 1 <= limit <= 15):
+                  raise SystemExit('invalid nested run step timeout')
               step_env = env.copy()
               for key, value in (step.get('env') or {}).items():
                   step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
               print(f'::group::{name}', flush=True)
-              proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
+              try:
+                  proc = subprocess.run(step['run'], cwd=root, shell=True,
+                                        executable='/bin/bash', env=step_env,
+                                        timeout=limit * 60 if limit is not None else None)
+              except subprocess.TimeoutExpired:
+                  raise SystemExit('nested workflow run step timed out') from None
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
@@ -357,14 +389,30 @@ jobs:
           for step in job.get('steps', []):
               name = step.get('name') or step.get('uses') or 'unnamed step'
               if 'run' not in step:
-                  print(f'::notice title=Skipped non-run step::{name}', flush=True)
+                  action = str(step.get('uses') or '').split('@', 1)[0]
+                  if action not in {'actions/checkout', 'actions/setup-python',
+                                    'actions/upload-artifact'}:
+                      raise SystemExit('unsupported non-run step in private workflow')
+                  print(f'::warning title=Proxy skips native uses action::{name}', flush=True)
                   skipped += 1
                   continue
+              if step.get('if') not in (None, 'always()'):
+                  raise SystemExit('unsupported conditional run step')
+              if any(key in step for key in ('shell', 'working-directory', 'continue-on-error')):
+                  raise SystemExit('unsupported run step execution metadata')
+              limit = step.get('timeout-minutes')
+              if limit is not None and (type(limit) is not int or not 1 <= limit <= 15):
+                  raise SystemExit('invalid nested run step timeout')
               step_env = env.copy()
               for key, value in (step.get('env') or {}).items():
                   step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
               print(f'::group::{name}', flush=True)
-              proc = subprocess.run(step['run'], cwd=root, shell=True, executable='/bin/bash', env=step_env)
+              try:
+                  proc = subprocess.run(step['run'], cwd=root, shell=True,
+                                        executable='/bin/bash', env=step_env,
+                                        timeout=limit * 60 if limit is not None else None)
+              except subprocess.TimeoutExpired:
+                  raise SystemExit('nested workflow run step timed out') from None
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)

@@ -20,7 +20,7 @@ permissions:
 
 concurrency:
   group: hamkar-private-ci-${{ github.event.inputs.target_ref || github.ref_name }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   postgres-orm-smoke:

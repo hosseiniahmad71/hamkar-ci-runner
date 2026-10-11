@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: hamkar-private-ci-${{ github.event.inputs.target_ref }}
+  group: hamkar-private-ci-${{ github.event.inputs.target_ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -129,16 +129,6 @@ jobs:
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY
           python "$RUNNER_TEMP/run_private_workflow_job.py"
-      - name: Attach private workflow artifacts visible to this proxy job
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hamkar-private-proxy-postgres-artifacts
-          path: |
-            ${{ runner.temp }}/hamkar-pg-ui
-            ${{ runner.temp }}/hamkar-proxy-private-evidence/hamkar-phase3-synthetic-drill-evidence.json
-            ${{ runner.temp }}/hamkar-postgres-only-candidate.zip
-          if-no-files-found: warn
 
   phase3-external-monitoring-e2e:
     name: Monitoring E2E from private SHA

@@ -11,7 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WF = ROOT / '.github/workflows/phase3-final-exact-sha-hardened-proxy.yml'
-TARGET = 'a3cc07140de192138a8f6f255eb05a7b4ff17292'
+TARGET = 'e947a60afda84149187ba35b836583fa89eb8f3d'
 JOBS = ('postgres-orm-smoke', 'phase3-external-monitoring-e2e',
         'ui-d-specialist-605', 'ui-d-pg18-chromium', 'ui-d-static')
 MARK = 'SYNTHETIC_LOG_SENTINEL_92940_NOT_SECRET'
@@ -142,3 +142,4 @@ def cls_steps(config, job):
 
 if __name__ == '__main__':
     unittest.main()
+

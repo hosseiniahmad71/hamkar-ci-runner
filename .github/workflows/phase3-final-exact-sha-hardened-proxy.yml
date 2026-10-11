@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'work/phase3-pr61-exact-sha-final-qa-v1'
+      - 'work/phase3-fifo-frozen-exact-qa-v1'
 
 permissions:
   contents: read
@@ -38,7 +39,7 @@ jobs:
     steps:
       - name: Validate dispatch inputs before private checkout
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           TARGET_LABEL_INPUT: phase3final
         run: |
           set -euo pipefail
@@ -55,13 +56,13 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: 0ea866a580959e468c2fe6cf906920220c29f857
+          ref: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
         run: |
           set -euo pipefail
           if [[ ! "$TARGET_SHA_INPUT" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -261,7 +262,7 @@ jobs:
     steps:
       - name: Validate dispatch inputs before private checkout
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           TARGET_LABEL_INPUT: phase3final
         run: |
           set -euo pipefail
@@ -278,13 +279,13 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: 0ea866a580959e468c2fe6cf906920220c29f857
+          ref: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
         run: |
           set -euo pipefail
           if [[ ! "$TARGET_SHA_INPUT" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -469,7 +470,7 @@ jobs:
     steps:
       - name: Validate dispatch inputs before private checkout
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           TARGET_LABEL_INPUT: phase3final
         run: |
           set -euo pipefail
@@ -486,13 +487,13 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: 0ea866a580959e468c2fe6cf906920220c29f857
+          ref: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
         run: |
           set -euo pipefail
           if [[ ! "$TARGET_SHA_INPUT" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -529,7 +530,7 @@ jobs:
           job = workflow['jobs'][job_name]
           env = os.environ.copy()
           # Private workflow GITHUB_SHA follows the exact verified checkout.
-          env['GITHUB_SHA'] = '0ea866a580959e468c2fe6cf906920220c29f857'
+          env['GITHUB_SHA'] = '46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d'
           # Never expose workflow/Actions runtime tokens to private scripts.
           for key in list(env):
               if (key.endswith('_TOKEN') or key.startswith('ACTIONS_RUNTIME_')
@@ -693,7 +694,7 @@ jobs:
     steps:
       - name: Validate dispatch inputs before private checkout
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           TARGET_LABEL_INPUT: phase3final
         run: |
           set -euo pipefail
@@ -710,13 +711,13 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: 0ea866a580959e468c2fe6cf906920220c29f857
+          ref: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
         run: |
           set -euo pipefail
           if [[ ! "$TARGET_SHA_INPUT" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -754,7 +755,7 @@ jobs:
           job = workflow['jobs'][job_name]
           env = os.environ.copy()
           # Private workflow GITHUB_SHA follows the exact verified checkout.
-          env['GITHUB_SHA'] = '0ea866a580959e468c2fe6cf906920220c29f857'
+          env['GITHUB_SHA'] = '46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d'
           # Never expose workflow/Actions runtime tokens to private scripts.
           for key in list(env):
               if (key.endswith('_TOKEN') or key.startswith('ACTIONS_RUNTIME_')
@@ -918,7 +919,7 @@ jobs:
     steps:
       - name: Validate dispatch inputs before private checkout
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           TARGET_LABEL_INPUT: phase3final
         run: |
           set -euo pipefail
@@ -935,13 +936,13 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: 0ea866a580959e468c2fe6cf906920220c29f857
+          ref: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         env:
-          TARGET_SHA_INPUT: 0ea866a580959e468c2fe6cf906920220c29f857
+          TARGET_SHA_INPUT: 46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d
         run: |
           set -euo pipefail
           if [[ ! "$TARGET_SHA_INPUT" =~ ^[0-9a-fA-F]{40}$ ]]; then
@@ -978,7 +979,7 @@ jobs:
           job = workflow['jobs'][job_name]
           env = os.environ.copy()
           # Private workflow GITHUB_SHA follows the exact verified checkout.
-          env['GITHUB_SHA'] = '0ea866a580959e468c2fe6cf906920220c29f857'
+          env['GITHUB_SHA'] = '46da02a4c5aa866f1ee3c5789b03a5a8bf110e3d'
           # Never expose workflow/Actions runtime tokens to private scripts.
           for key in list(env):
               if (key.endswith('_TOKEN') or key.startswith('ACTIONS_RUNTIME_')

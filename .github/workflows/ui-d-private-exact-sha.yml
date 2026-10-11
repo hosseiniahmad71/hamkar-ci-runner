@@ -1,0 +1,200 @@
+name: HamKar UI-D private exact-SHA no-artifact proxy
+
+on:
+  push:
+    branches:
+      - 'work/ui-d-csv-proxy-exact-v1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hamkar-uid-exclusive-proxy
+  cancel-in-progress: false
+
+jobs:
+  uid-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout private HamKar at frozen UI-D SHA
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: hamkar
+          fetch-depth: 0
+      - name: Verify exact tested SHA
+        run: |
+          test "$(git -C hamkar rev-parse HEAD)" = 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          git -C hamkar remote remove origin
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Node 22, Python validation and frozen-manifest regression
+        working-directory: hamkar
+        run: |
+          set -euo pipefail
+          node --version
+          node --check app/modules/07u-pg-csv-preview-ui.js
+          python scripts/build_frontend_bundle.py --check
+          python tests/smoke/ui_d_csv_validation_smoke.py
+          python tests/smoke/code_hygiene_smoke.py
+          python tests/smoke/manifest_integrity_contract.py
+          test "$(git rev-parse HEAD:app/frontend.bundle.js)" = "bf871429d01a235f87c5850956e35969d296bd78"
+
+  uid-pg18-chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18
+        env:
+          POSTGRES_USER: hamkar_test
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: hamkar_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hamkar_test -d hamkar_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      HAMKAR_TEST_POSTGRES_URL: postgresql+psycopg://hamkar_test:synthetic_ci_only@127.0.0.1:5432/hamkar_ci
+    steps:
+      - name: Checkout private HamKar at frozen UI-D SHA
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: hamkar
+          fetch-depth: 0
+      - name: Verify exact tested SHA
+        run: |
+          test "$(git -C hamkar rev-parse HEAD)" = 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          git -C hamkar remote remove origin
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install bounded dependencies for isolated PG18 Chromium
+        working-directory: hamkar
+        run: |
+          set -euo pipefail
+          python -m pip install --retries 0 --timeout 12 -r requirements.txt "playwright>=1.50,<2"
+          if [ -x /usr/bin/google-chrome ]; then
+            echo "HAMKAR_TEST_BROWSER=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+          else
+            python -m playwright install --with-deps chromium
+          fi
+          curl --fail --max-time 20 https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js -o "$RUNNER_TEMP/hamkar-react.js"
+          curl --fail --max-time 20 https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js -o "$RUNNER_TEMP/hamkar-react-dom.js"
+          echo "HAMKAR_TEST_REACT=$RUNNER_TEMP/hamkar-react.js" >> "$GITHUB_ENV"
+          echo "HAMKAR_TEST_REACT_DOM=$RUNNER_TEMP/hamkar-react-dom.js" >> "$GITHUB_ENV"
+          echo "HAMKAR_TEST_UI_ARTIFACTS=$RUNNER_TEMP/hamkar-private-ui" >> "$GITHUB_ENV"
+      - name: Real PostgreSQL 18 two tenant read-only CSV and HTTP permission tests
+        working-directory: hamkar
+        run: |
+          timeout 110s python tests/smoke/postgres_ui_d_csv_preview_smoke.py
+          timeout 60s python tests/smoke/postgres_http_auth_boundary_smoke.py
+          timeout 60s python tests/smoke/postgres_inventory_uow_smoke.py
+          timeout 60s python tests/smoke/postgres_inventory_journal_guard_smoke.py
+      - name: Real Chromium 390 and 1440 race retry RTL
+        working-directory: hamkar
+        run: |
+          timeout 110s python tests/smoke/ui_d_csv_chromium_smoke.py
+          timeout 150s python tests/smoke/postgres_phase2_ui_smoke.py
+
+  uid-605:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout private HamKar at frozen UI-D SHA
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: hamkar
+          fetch-depth: 0
+      - name: Verify exact tested SHA
+        run: |
+          test "$(git -C hamkar rev-parse HEAD)" = 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          git -C hamkar remote remove origin
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pre-existing unittest schema dependency
+        working-directory: hamkar
+        run: python -m pip install --retries 0 --timeout 12 "jsonschema>=4,<5"
+      - name: All 605 accepted tests (strict count, zero skips)
+        working-directory: hamkar
+        run: |
+          python - <<'PY'
+          import re, subprocess, sys
+          specs=[
+           ("external_ai_staging/monitoring/task01",31),
+           ("external_ai_staging/monitoring/task02",72),
+           ("external_ai_staging/monitoring/task03",50),
+           ("external_ai_staging/recovery/task04",121),
+           ("external_ai_staging/recovery/task05",61),
+           ("external_ai_staging/recovery/task06",60),
+           ("external_ai_staging/recovery/task07",66),
+           ("external_ai_staging/round3/task08",31),
+           ("external_ai_staging/round3/task09",30),
+           ("external_ai_staging/round3/task10",30),
+           ("external_ai_staging/round3/task11",37),
+           ("tests/smoke/phase3_external_recovery_evidence_smoke.py",7),
+           ("tests/smoke/phase3_round3_external_controls_smoke.py",9),
+          ]
+          total=0
+          for target,expected in specs:
+           args=[sys.executable,"-X","dev","-W","error","-m","unittest"]
+           args+=(["-v",target] if target.endswith(".py") else
+                  ["discover","-s",target,"-p","test_*.py","-q"])
+           try:
+            p=subprocess.run(args,text=True,capture_output=True,timeout=400)
+           except subprocess.TimeoutExpired: raise SystemExit("GROUP_TIMEOUT "+target)
+           output=p.stdout+"\n"+p.stderr
+           found=re.findall(r"^Ran (\d+) tests? in [0-9.]+s$",output,re.M)
+           outcome=re.findall(r"^(OK(?: \([^\n]+\))?|FAILED(?: \([^\n]+\))?)$",output,re.M)
+           count=int(found[0]) if len(found)==1 else -1
+           passed=(p.returncode==0 and count==expected and outcome==["OK"] and
+                   not re.search(r"\b(?:skipped|failures|errors)=[1-9]\d*",output))
+           print(f"GROUP {target} {count}/{expected} status={'PASS' if passed else 'FAIL'}",flush=True)
+           if not passed:
+            print(output[-3500:])
+            raise SystemExit("SPECIALIST_FAIL")
+           total+=count
+          assert total==605,total
+          print("SPECIALIST_TOTAL=605 SKIPPED=0 FAILURES=0 ERRORS=0")
+          PY
+
+  uid-monitoring:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout private HamKar at frozen UI-D SHA
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: hamkar
+          fetch-depth: 0
+      - name: Verify exact tested SHA
+        run: |
+          test "$(git -C hamkar rev-parse HEAD)" = 'b1542c4af3d194ba1f8babce5e4ffb47548d9800'
+          git -C hamkar remote remove origin
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Synthetic monitoring E2E (private transient test data)
+        working-directory: hamkar
+        run: timeout -s TERM -k 20s 660s python tests/smoke/phase3_external_ai_monitoring_e2e.py

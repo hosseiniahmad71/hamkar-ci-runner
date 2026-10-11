@@ -172,7 +172,7 @@ jobs:
               print(f'::group::Synthetic private run step {executed + 1}', flush=True)
               try:
                   # Public helper logs must never receive private stdout/stderr.
-              proc = subprocess.run(step['run'], cwd=root, shell=True,
+                  proc = subprocess.run(step['run'], cwd=root, shell=True,
                                     executable='/bin/bash', env=step_env,
                                     stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
@@ -360,7 +360,7 @@ jobs:
               print(f'::group::Synthetic private run step {executed + 1}', flush=True)
               try:
                   # Public helper logs must never receive private stdout/stderr.
-              proc = subprocess.run(step['run'], cwd=root, shell=True,
+                  proc = subprocess.run(step['run'], cwd=root, shell=True,
                                     executable='/bin/bash', env=step_env,
                                     stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
@@ -549,7 +549,7 @@ jobs:
               print(f'::group::Synthetic private run step {executed + 1}', flush=True)
               try:
                   # Public helper logs must never receive private stdout/stderr.
-              proc = subprocess.run(step['run'], cwd=root, shell=True,
+                  proc = subprocess.run(step['run'], cwd=root, shell=True,
                                     executable='/bin/bash', env=step_env,
                                     stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,

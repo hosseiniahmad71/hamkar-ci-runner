@@ -50,14 +50,14 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: ${{ inputs.target_ref || 'e8aa2494f3591baa704e2341ad6000fdc043bd64' }}
+          ref: ${{ inputs.target_ref || 'b7ed6d82670d8f59f64f28bf444fa6dc44c5c1b1' }}
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         run: |
           set -euo pipefail
-          test "${{ inputs.target_ref || 'e8aa2494f3591baa704e2341ad6000fdc043bd64' }}" = "$(git -C hamkar rev-parse HEAD)"
+          test "${{ inputs.target_ref || 'b7ed6d82670d8f59f64f28bf444fa6dc44c5c1b1' }}" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
           echo "TARGET_LABEL=${{ inputs.target_label }}"
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
@@ -142,14 +142,14 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: ${{ inputs.target_ref || 'e8aa2494f3591baa704e2341ad6000fdc043bd64' }}
+          ref: ${{ inputs.target_ref || 'b7ed6d82670d8f59f64f28bf444fa6dc44c5c1b1' }}
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         run: |
           set -euo pipefail
-          test "${{ inputs.target_ref || 'e8aa2494f3591baa704e2341ad6000fdc043bd64' }}" = "$(git -C hamkar rev-parse HEAD)"
+          test "${{ inputs.target_ref || 'b7ed6d82670d8f59f64f28bf444fa6dc44c5c1b1' }}" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
           echo "TARGET_LABEL=${{ inputs.target_label }}"
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
@@ -219,14 +219,14 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: ${{ inputs.target_ref || 'e8aa2494f3591baa704e2341ad6000fdc043bd64' }}
+          ref: ${{ inputs.target_ref || 'b7ed6d82670d8f59f64f28bf444fa6dc44c5c1b1' }}
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         run: |
           set -euo pipefail
-          test "${{ inputs.target_ref || 'e8aa2494f3591baa704e2341ad6000fdc043bd64' }}" = "$(git -C hamkar rev-parse HEAD)"
+          test "${{ inputs.target_ref || 'b7ed6d82670d8f59f64f28bf444fa6dc44c5c1b1' }}" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
           echo "TARGET_LABEL=${{ inputs.target_label }}"
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"

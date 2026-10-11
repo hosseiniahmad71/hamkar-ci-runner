@@ -86,6 +86,7 @@ jobs:
           python -m pip install --retries 0 --timeout 10 'PyYAML>=6,<7'
           cat > "$RUNNER_TEMP/run_private_workflow_job.py" <<'PY'
           import os, subprocess, sys
+          import re
           from pathlib import Path
           import yaml
 
@@ -98,6 +99,8 @@ jobs:
               env[str(key)] = str(value).replace('${{ runner.temp }}', env['RUNNER_TEMP'])
           executed = 0
           skipped = 0
+          github_env_path = Path(env['GITHUB_ENV'])
+          env_offset = github_env_path.stat().st_size if github_env_path.exists() else 0
           for step in job.get('steps', []):
               name = step.get('name') or step.get('uses') or 'unnamed step'
               if 'run' not in step:
@@ -129,18 +132,39 @@ jobs:
               # GitHub does not replay GITHUB_ENV exports between nested
               # run steps executed as subprocesses of this one proxy step.
               # Import only the six non-secret, documented path exports.
-              github_env = Path(env['GITHUB_ENV'])
-              if github_env.is_file():
-                  for assignment in github_env.read_text().splitlines():
+              # Apply only bytes appended by this simulated step, not old
+              # runner exports. Restrict exports to six local, non-secret paths.
+              if github_env_path.is_symlink():
+                  raise SystemExit('unsafe nested workflow env file')
+              if github_env_path.is_file():
+                  current_size = github_env_path.stat().st_size
+                  if current_size < env_offset:
+                      raise SystemExit('nested workflow env file was truncated')
+                  with github_env_path.open('rb') as exports:
+                      exports.seek(env_offset)
+                      appended = exports.read(8193)
+                  if len(appended) > 8192:
+                      raise SystemExit('oversized nested workflow env export')
+                  env_offset = current_size
+                  allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                             'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                             'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                  for assignment in appended.decode('utf-8').splitlines():
                       if not assignment:
                           continue
                       key, separator, value = assignment.partition('=')
-                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
-                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
-                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
                       if not separator or key not in allowed:
                           raise SystemExit('unrecognized nested workflow env export')
-                      env[key] = value
+                      if (len(value) > 4096 or
+                              not re.fullmatch(r'/[A-Za-z0-9_./-]+', value)):
+                          raise SystemExit('unsafe nested workflow env path')
+                      resolved = Path(value).resolve()
+                      if key == 'HAMKAR_TEST_BROWSER':
+                          if str(resolved) != '/usr/bin/google-chrome':
+                              raise SystemExit('unexpected browser binary path')
+                      elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
+                          raise SystemExit('nested workflow path escapes runner temp')
+                      env[key] = str(resolved)
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY
@@ -197,6 +221,7 @@ jobs:
           python -m pip install --retries 0 --timeout 10 'PyYAML>=6,<7'
           cat > "$RUNNER_TEMP/run_private_workflow_job.py" <<'PY'
           import os, subprocess
+          import re
           from pathlib import Path
           import yaml
           root = Path('hamkar')
@@ -207,6 +232,8 @@ jobs:
           for key, value in (job.get('env') or {}).items():
               env[str(key)] = str(value).replace('${{ runner.temp }}', env['RUNNER_TEMP'])
           executed = skipped = 0
+          github_env_path = Path(env['GITHUB_ENV'])
+          env_offset = github_env_path.stat().st_size if github_env_path.exists() else 0
           for step in job.get('steps', []):
               name = step.get('name') or step.get('uses') or 'unnamed step'
               if 'run' not in step:
@@ -224,18 +251,39 @@ jobs:
               # GitHub does not replay GITHUB_ENV exports between nested
               # run steps executed as subprocesses of this one proxy step.
               # Import only the six non-secret, documented path exports.
-              github_env = Path(env['GITHUB_ENV'])
-              if github_env.is_file():
-                  for assignment in github_env.read_text().splitlines():
+              # Apply only bytes appended by this simulated step, not old
+              # runner exports. Restrict exports to six local, non-secret paths.
+              if github_env_path.is_symlink():
+                  raise SystemExit('unsafe nested workflow env file')
+              if github_env_path.is_file():
+                  current_size = github_env_path.stat().st_size
+                  if current_size < env_offset:
+                      raise SystemExit('nested workflow env file was truncated')
+                  with github_env_path.open('rb') as exports:
+                      exports.seek(env_offset)
+                      appended = exports.read(8193)
+                  if len(appended) > 8192:
+                      raise SystemExit('oversized nested workflow env export')
+                  env_offset = current_size
+                  allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                             'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                             'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                  for assignment in appended.decode('utf-8').splitlines():
                       if not assignment:
                           continue
                       key, separator, value = assignment.partition('=')
-                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
-                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
-                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
                       if not separator or key not in allowed:
                           raise SystemExit('unrecognized nested workflow env export')
-                      env[key] = value
+                      if (len(value) > 4096 or
+                              not re.fullmatch(r'/[A-Za-z0-9_./-]+', value)):
+                          raise SystemExit('unsafe nested workflow env path')
+                      resolved = Path(value).resolve()
+                      if key == 'HAMKAR_TEST_BROWSER':
+                          if str(resolved) != '/usr/bin/google-chrome':
+                              raise SystemExit('unexpected browser binary path')
+                      elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
+                          raise SystemExit('nested workflow path escapes runner temp')
+                      env[key] = str(resolved)
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY
@@ -293,6 +341,7 @@ jobs:
           python -m pip install --retries 0 --timeout 10 'PyYAML>=6,<7'
           cat > "$RUNNER_TEMP/run_private_workflow_job.py" <<'PY'
           import os, subprocess
+          import re
           from pathlib import Path
           import yaml
           root = Path('hamkar')
@@ -303,6 +352,8 @@ jobs:
           for key, value in (job.get('env') or {}).items():
               env[str(key)] = str(value).replace('${{ runner.temp }}', env['RUNNER_TEMP'])
           executed = skipped = 0
+          github_env_path = Path(env['GITHUB_ENV'])
+          env_offset = github_env_path.stat().st_size if github_env_path.exists() else 0
           for step in job.get('steps', []):
               name = step.get('name') or step.get('uses') or 'unnamed step'
               if 'run' not in step:
@@ -320,18 +371,39 @@ jobs:
               # GitHub does not replay GITHUB_ENV exports between nested
               # run steps executed as subprocesses of this one proxy step.
               # Import only the six non-secret, documented path exports.
-              github_env = Path(env['GITHUB_ENV'])
-              if github_env.is_file():
-                  for assignment in github_env.read_text().splitlines():
+              # Apply only bytes appended by this simulated step, not old
+              # runner exports. Restrict exports to six local, non-secret paths.
+              if github_env_path.is_symlink():
+                  raise SystemExit('unsafe nested workflow env file')
+              if github_env_path.is_file():
+                  current_size = github_env_path.stat().st_size
+                  if current_size < env_offset:
+                      raise SystemExit('nested workflow env file was truncated')
+                  with github_env_path.open('rb') as exports:
+                      exports.seek(env_offset)
+                      appended = exports.read(8193)
+                  if len(appended) > 8192:
+                      raise SystemExit('oversized nested workflow env export')
+                  env_offset = current_size
+                  allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                             'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                             'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                  for assignment in appended.decode('utf-8').splitlines():
                       if not assignment:
                           continue
                       key, separator, value = assignment.partition('=')
-                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
-                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
-                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
                       if not separator or key not in allowed:
                           raise SystemExit('unrecognized nested workflow env export')
-                      env[key] = value
+                      if (len(value) > 4096 or
+                              not re.fullmatch(r'/[A-Za-z0-9_./-]+', value)):
+                          raise SystemExit('unsafe nested workflow env path')
+                      resolved = Path(value).resolve()
+                      if key == 'HAMKAR_TEST_BROWSER':
+                          if str(resolved) != '/usr/bin/google-chrome':
+                              raise SystemExit('unexpected browser binary path')
+                      elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
+                          raise SystemExit('nested workflow path escapes runner temp')
+                      env[key] = str(resolved)
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY

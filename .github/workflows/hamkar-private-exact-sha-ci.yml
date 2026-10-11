@@ -78,7 +78,7 @@ jobs:
           git -C hamkar remote remove origin || true
           # No repository-local credential, auth header or token URL rewrite may
           # survive the checkout. Never print an offending value.
-          if git -C hamkar config --local --get-regexp '^(http\\..*\\.extraheader|credential\\..*|url\\..*\\.insteadof)$' >/dev/null 2>&1; then
+          if git -C hamkar config --local --get-regexp '^(http\..*\.extraheader|credential\..*|url\..*\.insteadof)$' >/dev/null 2>&1; then
             echo 'REFUSED: repository-local credential configuration found'
             exit 2
           fi
@@ -282,7 +282,7 @@ jobs:
           git -C hamkar remote remove origin || true
           # No repository-local credential, auth header or token URL rewrite may
           # survive the checkout. Never print an offending value.
-          if git -C hamkar config --local --get-regexp '^(http\\..*\\.extraheader|credential\\..*|url\\..*\\.insteadof)$' >/dev/null 2>&1; then
+          if git -C hamkar config --local --get-regexp '^(http\..*\.extraheader|credential\..*|url\..*\.insteadof)$' >/dev/null 2>&1; then
             echo 'REFUSED: repository-local credential configuration found'
             exit 2
           fi
@@ -471,7 +471,7 @@ jobs:
           git -C hamkar remote remove origin || true
           # No repository-local credential, auth header or token URL rewrite may
           # survive the checkout. Never print an offending value.
-          if git -C hamkar config --local --get-regexp '^(http\\..*\\.extraheader|credential\\..*|url\\..*\\.insteadof)$' >/dev/null 2>&1; then
+          if git -C hamkar config --local --get-regexp '^(http\..*\.extraheader|credential\..*|url\..*\.insteadof)$' >/dev/null 2>&1; then
             echo 'REFUSED: repository-local credential configuration found'
             exit 2
           fi

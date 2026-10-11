@@ -125,6 +125,24 @@ class ProxySecurityTests(unittest.TestCase):
                 self.assertTrue(marker)
                 self.assertIn('skipped_non_run_steps=1', p.stdout)
 
+    def test_synthetic_evidence_dir_mode_and_bad_filename(self):
+        name = 'postgres-orm-smoke'
+        valid = [{
+            'env': {'HAMKAR_CI_EVIDENCE_OUTPUT':
+                    '${{ runner.temp }}/hamkar-phase3-synthetic-drill-evidence.json'},
+            'run': 'test "$(stat -c %a "$(dirname "$HAMKAR_CI_EVIDENCE_OUTPUT")")" = 700 && touch ../second',
+        }]
+        p, marker = self.simulate(name, valid)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertTrue(marker)
+        invalid = [{
+            'env': {'HAMKAR_CI_EVIDENCE_OUTPUT': '/tmp/unsafe-private-backup.json'},
+            'run': 'touch ../second',
+        }]
+        p, marker = self.simulate(name, invalid)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertFalse(marker)
+
     def test_expected_pg18_service(self):
         pg = self.config['jobs']['postgres-orm-smoke']
         self.assertEqual(pg['services']['postgres']['image'],

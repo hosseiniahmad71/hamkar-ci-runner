@@ -76,6 +76,12 @@ jobs:
           fi
           test "$TARGET_SHA_INPUT" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
+          # No repository-local credential, auth header or token URL rewrite may
+          # survive the checkout. Never print an offending value.
+          if git -C hamkar config --local --get-regexp '^(http\\..*\\.extraheader|credential\\..*|url\\..*\\.insteadof)$' >/dev/null 2>&1; then
+            echo 'REFUSED: repository-local credential configuration found'
+            exit 2
+          fi
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
@@ -108,7 +114,7 @@ jobs:
                   if action not in {'actions/checkout', 'actions/setup-python',
                                     'actions/upload-artifact'}:
                       raise SystemExit('unsupported non-run step in private workflow')
-                  print(f'::warning title=Proxy skips native uses action::{name}', flush=True)
+                  print(f'::notice title=Proxy skips supported native uses::{action}', flush=True)
                   skipped += 1
                   continue
               if step.get('if') not in (None, 'always()'):
@@ -135,11 +141,14 @@ jobs:
                           or stat.S_IMODE(info.st_mode) != 0o700):
                       raise SystemExit('unsafe synthetic evidence directory')
                   step_env['HAMKAR_CI_EVIDENCE_OUTPUT'] = str(private_dir / target_name)
-              print(f'::group::{name}', flush=True)
+              print(f'::group::Synthetic private run step {executed + 1}', flush=True)
               try:
-                  proc = subprocess.run(step['run'], cwd=root, shell=True,
-                                        executable='/bin/bash', env=step_env,
-                                        timeout=limit * 60 if limit is not None else None)
+                  # Public helper logs must never receive private stdout/stderr.
+              proc = subprocess.run(step['run'], cwd=root, shell=True,
+                                    executable='/bin/bash', env=step_env,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    timeout=limit * 60 if limit is not None else None)
               except subprocess.TimeoutExpired:
                   raise SystemExit('nested workflow run step timed out') from None
               print('::endgroup::', flush=True)
@@ -178,8 +187,24 @@ jobs:
                       if key == 'HAMKAR_TEST_BROWSER':
                           if value != '/usr/bin/google-chrome':
                               raise SystemExit('unexpected browser binary path')
-                      elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
-                          raise SystemExit('nested workflow path escapes runner temp')
+                      else:
+                          temp_root = Path(env['RUNNER_TEMP']).resolve()
+                          if not resolved.is_relative_to(temp_root):
+                              raise SystemExit('nested workflow path escapes runner temp')
+                          # Reject all symlinks, including directory components
+                          # that resolve to another path still inside runner temp.
+                          candidate = Path(value)
+                          try:
+                              relative = candidate.relative_to(Path(env['RUNNER_TEMP']))
+                          except ValueError:
+                              raise SystemExit('nested workflow path escapes runner temp') from None
+                          cursor = Path(env['RUNNER_TEMP'])
+                          for component in relative.parts:
+                              if component in ('.', '..'):
+                                  raise SystemExit('invalid runner temp path component')
+                              cursor = cursor / component
+                              if cursor.is_symlink():
+                                  raise SystemExit('symlink in nested workflow export path')
                       env[key] = str(resolved)
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
@@ -227,6 +252,12 @@ jobs:
           fi
           test "$TARGET_SHA_INPUT" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
+          # No repository-local credential, auth header or token URL rewrite may
+          # survive the checkout. Never print an offending value.
+          if git -C hamkar config --local --get-regexp '^(http\\..*\\.extraheader|credential\\..*|url\\..*\\.insteadof)$' >/dev/null 2>&1; then
+            echo 'REFUSED: repository-local credential configuration found'
+            exit 2
+          fi
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
@@ -257,7 +288,7 @@ jobs:
                   if action not in {'actions/checkout', 'actions/setup-python',
                                     'actions/upload-artifact'}:
                       raise SystemExit('unsupported non-run step in private workflow')
-                  print(f'::warning title=Proxy skips native uses action::{name}', flush=True)
+                  print(f'::notice title=Proxy skips supported native uses::{action}', flush=True)
                   skipped += 1
                   continue
               if step.get('if') not in (None, 'always()'):
@@ -270,11 +301,14 @@ jobs:
               step_env = env.copy()
               for key, value in (step.get('env') or {}).items():
                   step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
-              print(f'::group::{name}', flush=True)
+              print(f'::group::Synthetic private run step {executed + 1}', flush=True)
               try:
-                  proc = subprocess.run(step['run'], cwd=root, shell=True,
-                                        executable='/bin/bash', env=step_env,
-                                        timeout=limit * 60 if limit is not None else None)
+                  # Public helper logs must never receive private stdout/stderr.
+              proc = subprocess.run(step['run'], cwd=root, shell=True,
+                                    executable='/bin/bash', env=step_env,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    timeout=limit * 60 if limit is not None else None)
               except subprocess.TimeoutExpired:
                   raise SystemExit('nested workflow run step timed out') from None
               print('::endgroup::', flush=True)
@@ -313,8 +347,24 @@ jobs:
                       if key == 'HAMKAR_TEST_BROWSER':
                           if value != '/usr/bin/google-chrome':
                               raise SystemExit('unexpected browser binary path')
-                      elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
-                          raise SystemExit('nested workflow path escapes runner temp')
+                      else:
+                          temp_root = Path(env['RUNNER_TEMP']).resolve()
+                          if not resolved.is_relative_to(temp_root):
+                              raise SystemExit('nested workflow path escapes runner temp')
+                          # Reject all symlinks, including directory components
+                          # that resolve to another path still inside runner temp.
+                          candidate = Path(value)
+                          try:
+                              relative = candidate.relative_to(Path(env['RUNNER_TEMP']))
+                          except ValueError:
+                              raise SystemExit('nested workflow path escapes runner temp') from None
+                          cursor = Path(env['RUNNER_TEMP'])
+                          for component in relative.parts:
+                              if component in ('.', '..'):
+                                  raise SystemExit('invalid runner temp path component')
+                              cursor = cursor / component
+                              if cursor.is_symlink():
+                                  raise SystemExit('symlink in nested workflow export path')
                       env[key] = str(resolved)
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
@@ -363,6 +413,12 @@ jobs:
           fi
           test "$TARGET_SHA_INPUT" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
+          # No repository-local credential, auth header or token URL rewrite may
+          # survive the checkout. Never print an offending value.
+          if git -C hamkar config --local --get-regexp '^(http\\..*\\.extraheader|credential\\..*|url\\..*\\.insteadof)$' >/dev/null 2>&1; then
+            echo 'REFUSED: repository-local credential configuration found'
+            exit 2
+          fi
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
@@ -393,7 +449,7 @@ jobs:
                   if action not in {'actions/checkout', 'actions/setup-python',
                                     'actions/upload-artifact'}:
                       raise SystemExit('unsupported non-run step in private workflow')
-                  print(f'::warning title=Proxy skips native uses action::{name}', flush=True)
+                  print(f'::notice title=Proxy skips supported native uses::{action}', flush=True)
                   skipped += 1
                   continue
               if step.get('if') not in (None, 'always()'):
@@ -406,11 +462,14 @@ jobs:
               step_env = env.copy()
               for key, value in (step.get('env') or {}).items():
                   step_env[str(key)] = str(value).replace('${{ runner.temp }}', step_env['RUNNER_TEMP'])
-              print(f'::group::{name}', flush=True)
+              print(f'::group::Synthetic private run step {executed + 1}', flush=True)
               try:
-                  proc = subprocess.run(step['run'], cwd=root, shell=True,
-                                        executable='/bin/bash', env=step_env,
-                                        timeout=limit * 60 if limit is not None else None)
+                  # Public helper logs must never receive private stdout/stderr.
+              proc = subprocess.run(step['run'], cwd=root, shell=True,
+                                    executable='/bin/bash', env=step_env,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    timeout=limit * 60 if limit is not None else None)
               except subprocess.TimeoutExpired:
                   raise SystemExit('nested workflow run step timed out') from None
               print('::endgroup::', flush=True)
@@ -449,8 +508,24 @@ jobs:
                       if key == 'HAMKAR_TEST_BROWSER':
                           if value != '/usr/bin/google-chrome':
                               raise SystemExit('unexpected browser binary path')
-                      elif not resolved.is_relative_to(Path(env['RUNNER_TEMP']).resolve()):
-                          raise SystemExit('nested workflow path escapes runner temp')
+                      else:
+                          temp_root = Path(env['RUNNER_TEMP']).resolve()
+                          if not resolved.is_relative_to(temp_root):
+                              raise SystemExit('nested workflow path escapes runner temp')
+                          # Reject all symlinks, including directory components
+                          # that resolve to another path still inside runner temp.
+                          candidate = Path(value)
+                          try:
+                              relative = candidate.relative_to(Path(env['RUNNER_TEMP']))
+                          except ValueError:
+                              raise SystemExit('nested workflow path escapes runner temp') from None
+                          cursor = Path(env['RUNNER_TEMP'])
+                          for component in relative.parts:
+                              if component in ('.', '..'):
+                                  raise SystemExit('invalid runner temp path component')
+                              cursor = cursor / component
+                              if cursor.is_symlink():
+                                  raise SystemExit('symlink in nested workflow export path')
                       env[key] = str(resolved)
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)

@@ -5,6 +5,7 @@ on:
     branches:
       - work/security-manual-proxy-no-public-artifacts-v1
       - work/security-helper-integration-hardening-on-ec6184-v1
+      - work/phase3-native-ci-security-parity-on-eebe-v1
 
 permissions:
   contents: read
@@ -26,4 +27,4 @@ jobs:
       - name: Install public YAML parser
         run: python -m pip install --retries 0 --timeout 10 'PyYAML>=6,<7'
       - name: Run adversarial security regressions
-        run: python -m unittest discover -s tests -p 'test_ci_helper_*.py' -v
+        run: python -m unittest discover -s tests -p 'test_ci_*.py' -v

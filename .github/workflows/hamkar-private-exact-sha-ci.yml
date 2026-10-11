@@ -1,6 +1,9 @@
 name: HamKar private exact SHA CI proxy
 
 on:
+  push:
+    branches:
+      - 'work/phase3-ci-proxy-env-parity-v1'
   workflow_dispatch:
     inputs:
       target_ref:
@@ -47,14 +50,14 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: ${{ inputs.target_ref }}
+          ref: ${{ inputs.target_ref || 'ff102ac3feabb798d2c5ac6882f0475475027c52' }}
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         run: |
           set -euo pipefail
-          test "${{ inputs.target_ref }}" = "$(git -C hamkar rev-parse HEAD)"
+          test "${{ inputs.target_ref || 'ff102ac3feabb798d2c5ac6882f0475475027c52' }}" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
           echo "TARGET_LABEL=${{ inputs.target_label }}"
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
@@ -93,6 +96,21 @@ jobs:
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
+              # GitHub does not replay GITHUB_ENV exports between nested
+              # run steps executed as subprocesses of this one proxy step.
+              # Import only the six non-secret, documented path exports.
+              github_env = Path(env['GITHUB_ENV'])
+              if github_env.is_file():
+                  for assignment in github_env.read_text().splitlines():
+                      if not assignment:
+                          continue
+                      key, separator, value = assignment.partition('=')
+                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                      if not separator or key not in allowed:
+                          raise SystemExit('unrecognized nested workflow env export')
+                      env[key] = value
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY
@@ -120,14 +138,14 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: ${{ inputs.target_ref }}
+          ref: ${{ inputs.target_ref || 'ff102ac3feabb798d2c5ac6882f0475475027c52' }}
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         run: |
           set -euo pipefail
-          test "${{ inputs.target_ref }}" = "$(git -C hamkar rev-parse HEAD)"
+          test "${{ inputs.target_ref || 'ff102ac3feabb798d2c5ac6882f0475475027c52' }}" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
           echo "TARGET_LABEL=${{ inputs.target_label }}"
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
@@ -164,6 +182,21 @@ jobs:
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
+              # GitHub does not replay GITHUB_ENV exports between nested
+              # run steps executed as subprocesses of this one proxy step.
+              # Import only the six non-secret, documented path exports.
+              github_env = Path(env['GITHUB_ENV'])
+              if github_env.is_file():
+                  for assignment in github_env.read_text().splitlines():
+                      if not assignment:
+                          continue
+                      key, separator, value = assignment.partition('=')
+                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                      if not separator or key not in allowed:
+                          raise SystemExit('unrecognized nested workflow env export')
+                      env[key] = value
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY
@@ -182,14 +215,14 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: ${{ inputs.target_ref }}
+          ref: ${{ inputs.target_ref || 'ff102ac3feabb798d2c5ac6882f0475475027c52' }}
           path: hamkar
           fetch-depth: 0
           persist-credentials: false
       - name: Verify exact target SHA
         run: |
           set -euo pipefail
-          test "${{ inputs.target_ref }}" = "$(git -C hamkar rev-parse HEAD)"
+          test "${{ inputs.target_ref || 'ff102ac3feabb798d2c5ac6882f0475475027c52' }}" = "$(git -C hamkar rev-parse HEAD)"
           git -C hamkar remote remove origin || true
           echo "TARGET_LABEL=${{ inputs.target_label }}"
           echo "TARGET_SHA=$(git -C hamkar rev-parse HEAD)"
@@ -226,6 +259,21 @@ jobs:
               print('::endgroup::', flush=True)
               if proc.returncode:
                   raise SystemExit(proc.returncode)
+              # GitHub does not replay GITHUB_ENV exports between nested
+              # run steps executed as subprocesses of this one proxy step.
+              # Import only the six non-secret, documented path exports.
+              github_env = Path(env['GITHUB_ENV'])
+              if github_env.is_file():
+                  for assignment in github_env.read_text().splitlines():
+                      if not assignment:
+                          continue
+                      key, separator, value = assignment.partition('=')
+                      allowed = {'HAMKAR_PG_DUMP_BIN', 'HAMKAR_PG_RESTORE_BIN',
+                                 'HAMKAR_TEST_BROWSER', 'HAMKAR_TEST_REACT',
+                                 'HAMKAR_TEST_REACT_DOM', 'HAMKAR_TEST_UI_ARTIFACTS'}
+                      if not separator or key not in allowed:
+                          raise SystemExit('unrecognized nested workflow env export')
+                      env[key] = value
               executed += 1
           print(f'HAMKAR_PROXY_JOB_DONE job={job_name} executed_run_steps={executed} skipped_non_run_steps={skipped}', flush=True)
           PY

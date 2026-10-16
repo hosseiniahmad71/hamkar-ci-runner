@@ -1,0 +1,139 @@
+name: HamKar P42 exact-SHA isolated phone validation
+on:
+  push:
+    branches:
+      - ci/p42-basalam-phone-20261016
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hamkar-p42-exact-3dfd40afbfa80e714d934a44b0b06ea703da2a27
+  cancel-in-progress: false
+
+jobs:
+  p42-build-and-private-publish:
+    name: Verify P42, build phone archive, publish ONLY to private P40 branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAMKAR_EXPECTED_SOURCE_SHA: 3dfd40afbfa80e714d934a44b0b06ea703da2a27
+      HAMKAR_EXPECTED_BRANCH: fix/p40-basalam-inventory-link-20261016
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Retrieve private source at exact fixed commit
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          ref: 3dfd40afbfa80e714d934a44b0b06ea703da2a27
+          path: hamkar
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Fail closed unless checkout equals approved private SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C hamkar rev-parse HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
+          test "$(git -C hamkar remote get-url origin)" = "https://github.com/hosseiniahmad71/Hamkar-erp"
+          echo "EXACT_SOURCE_VERIFIED=$HAMKAR_EXPECTED_SOURCE_SHA"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python isolated dependency install
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r hamkar/prototypes/mobile-workbench-v4/preview-api/requirements.txt 'cryptography>=43,<48'
+
+      - name: Python syntax and focused synthetic regression tests (no provider IO)
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4/preview-api
+        run: |
+          set -euo pipefail
+          python -m py_compile platforms.py platform_worker.py store_projection.py
+          python -m pytest -q test_basalam_p42.py test_basalam_p39.py
+
+      - name: Install pinned frontend dependencies
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: npm ci --no-audit --no-fund
+
+      - name: TypeScript, React, and bounded Basalam contract tests
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npx vitest run tests/basalam-domain.test.ts
+          npm run build
+
+      - name: Build phone archive with explicit immutable source pin
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          python scripts/build-phone-web.py --source-sha "$HAMKAR_EXPECTED_SOURCE_SHA"
+          python - <<'PY'
+          import hashlib,json,tarfile
+          from pathlib import Path
+          from importlib.util import spec_from_file_location,module_from_spec
+          root=Path.cwd()
+          manifest=json.loads((root/'phone-web.json').read_text())
+          assert manifest['scope']=='ISOLATED_PREVIEW'
+          assert manifest['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
+          assert manifest['build_source_sha']=='3dfd40afbfa80e714d934a44b0b06ea703da2a27'
+          archive=root/'phone-web.tar.gz'
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==manifest['archive_sha256']
+          spec=spec_from_file_location('b',root/'scripts/build-phone-web.py')
+          module=module_from_spec(spec);spec.loader.exec_module(module)
+          observed={p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in module.inputs(root)}
+          assert manifest['inputs']==observed
+          with tarfile.open(archive,'r:gz') as b:
+              members=[m for m in b.getmembers()]
+              assert members and {m.name for m in members}==set(manifest['files'])
+              assert all(m.isfile() and m.size <= 8*1024*1024 and not m.name.startswith('/') and '..' not in Path(m.name).parts for m in members)
+              assert all(hashlib.sha256(b.extractfile(m).read()).hexdigest()==manifest['files'][m.name] for m in members)
+          print('PHONE_BUNDLE_VERIFIED archive_bytes='+str(archive.stat().st_size))
+          PY
+          test -z "$(git diff --name-only -- . ':!prototypes/mobile-workbench-v4/phone-web.json' ':!prototypes/mobile-workbench-v4/phone-web.tar.gz')"
+
+      - name: Publish verified package ONLY into pinned private feature branch
+        shell: bash
+        env:
+          HAMKAR_PRIVATE_REPO_TOKEN: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+        working-directory: hamkar
+        run: |
+          set -euo pipefail
+          test -n "$HAMKAR_PRIVATE_REPO_TOKEN"
+          test "$HAMKAR_EXPECTED_BRANCH" = "fix/p40-basalam-inventory-link-20261016"
+          test "$(git rev-parse HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
+          ASKPASS="$(mktemp "$RUNNER_TEMP/hamkar-askpass.XXXXXX")"
+          chmod 700 "$ASKPASS"
+          trap 'rm -f "$ASKPASS"' EXIT
+          cat > "$ASKPASS" <<'EOF'
+          #!/usr/bin/env bash
+          case "${1:-}" in
+            *Username*) printf '%s' x-access-token ;;
+            *Password*) printf '%s' "$HAMKAR_PRIVATE_REPO_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          EOF
+          export GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0
+          git fetch --no-tags origin "refs/heads/$HAMKAR_EXPECTED_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
+          git add -- prototypes/mobile-workbench-v4/phone-web.json prototypes/mobile-workbench-v4/phone-web.tar.gz
+          test -z "$(git diff --cached --name-only -- . ':!prototypes/mobile-workbench-v4/phone-web.json' ':!prototypes/mobile-workbench-v4/phone-web.tar.gz')"
+          git diff --cached --quiet && { echo "ERROR: phone archive unchanged; no new build commit"; exit 1; }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -c core.hooksPath=/dev/null commit -m "build(basalam): verified P42 phone bundle from 3dfd40afbfa8 [no deploy]"
+          git -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/$HAMKAR_EXPECTED_BRANCH"
+          echo 'PRIVATE_FEATURE_BRANCH_PHONE_BUNDLE_PUBLISHED (no public source artifact)'

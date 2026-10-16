@@ -2,7 +2,8 @@
 'use strict';
 const assert=require('node:assert/strict');
 const path=require('node:path');
-const {chromium}=require(require.resolve('playwright',{paths:[process.cwd()]}));
+let chromium;
+try{({chromium}=require(require.resolve('@playwright/test',{paths:[process.cwd()]})))}catch(error){console.log('P49_CHROMIUM_FAIL_CLASS=P49_IMPORT_DEPENDENCY');process.exit(1)}
 
 async function run(){
  const state={revision:7,scope:'ISOLATED_PREVIEW',updated_at:'2026-10-16T00:00:00Z',

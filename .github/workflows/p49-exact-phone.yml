@@ -1,0 +1,132 @@
+name: HamKar P49 exact-SHA safe preview validation
+on:
+  push:
+    branches:
+      - ci/p49-basalam-phone-20261017
+permissions:
+  contents: read
+concurrency:
+  group: hamkar-p49-exact-ba24f315
+  cancel-in-progress: false
+jobs:
+  p49-verify-build-private-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      HAMKAR_EXPECTED_SOURCE_SHA: ba24f315cb54d49b0f551ad8551a119a07a03171
+      HAMKAR_EXPECTED_PRIVATE_BRANCH: fix/p40-basalam-inventory-link-20261016
+      PYTHONDONTWRITEBYTECODE: '1'
+      CI: '1'
+    steps:
+      - name: Exact-SHA private checkout, no persisted token
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          ref: ba24f315cb54d49b0f551ad8551a119a07a03171
+          path: hamkar
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify checkout identity and remove origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "ci/p49-basalam-phone-20261017"
+          test "$(git -C hamkar rev-parse HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
+          git -C hamkar remote remove origin
+          echo "P49_PRIVATE_SOURCE_SHA_VERIFIED=$HAMKAR_EXPECTED_SOURCE_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python synthetic-test dependencies privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --retries 0 -r hamkar/prototypes/mobile-workbench-v4/preview-api/requirements.txt 'cryptography>=43,<48' >"$RUNNER_TEMP/p49-pip.log" 2>&1 || { echo "P49_PYTHON_DEPENDENCY_ERROR"; exit 1; }
+          echo "P49_PYTHON_DEPENDENCIES_OK"
+      - name: Python syntax and scoped synthetic regression
+        working-directory: hamkar/prototypes/mobile-workbench-v4/preview-api
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile ../../../backend/integrations/basalam.py platforms.py platform_worker.py store_projection.py basalam_variations.py test_basalam_p49.py || { echo "P49_PY_COMPILE_FAILED"; exit 1; }
+          python -m pytest -q test_basalam_p42.py test_basalam_p47.py test_basalam_p48.py test_basalam_p49.py >"$RUNNER_TEMP/p49-pytest.log" 2>&1 || { echo "P49_PYTEST_FAILED"; grep -oE '[0-9]+ failed|[0-9]+ passed|[0-9]+ errors?' "$RUNNER_TEMP/p49-pytest.log" | tail -5 || true; exit 1; }
+          echo "P49_PYTEST_PASS"
+          grep -oE '[0-9]+ passed' "$RUNNER_TEMP/p49-pytest.log" | tail -1 || true
+      - name: Install locked frontend dependencies privately
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund >"$RUNNER_TEMP/p49-npm.log" 2>&1 || { echo "P49_NPM_CI_FAILED"; exit 1; }
+          echo "P49_NPM_LOCKED_DEPS_OK"
+      - name: Targeted TypeScript and Vitest
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck >"$RUNNER_TEMP/p49-typecheck.log" 2>&1 || { echo "P49_TYPECHECK_FAILED"; grep -oE 'error TS[0-9]+' "$RUNNER_TEMP/p49-typecheck.log" | sort -u | head -12 || true; exit 1; }
+          echo "P49_TYPECHECK_PASS"
+          npx vitest run tests/basalam-domain.test.ts tests/basalam-money.test.ts tests/basalam-variations.test.ts >"$RUNNER_TEMP/p49-vitest.log" 2>&1 || { echo "P49_VITEST_FAILED"; exit 1; }
+          echo "P49_VITEST_PASS"
+      - name: Reproducible matching phone archive with strict manifest check
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build-phone-web.py --source-sha "$HAMKAR_EXPECTED_SOURCE_SHA" >"$RUNNER_TEMP/p49-build.log" 2>&1 || { echo "P49_BUILD_FAILED"; exit 1; }
+          python - <<'PY'
+          import hashlib, json, tarfile
+          from pathlib import Path
+          from importlib.util import spec_from_file_location,module_from_spec
+          root=Path.cwd();man=json.loads((root/'phone-web.json').read_text())
+          archive=root/'phone-web.tar.gz';sha=hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert man['scope']=='ISOLATED_PREVIEW'
+          assert man['build_source_sha']=='ba24f315cb54d49b0f551ad8551a119a07a03171'
+          assert man['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
+          assert sha==man['archive_sha256']
+          spec=spec_from_file_location('verifyphone',root/'scripts/build-phone-web.py')
+          mod=module_from_spec(spec);spec.loader.exec_module(mod)
+          inputs={p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in mod.inputs(root)}
+          assert inputs==man['inputs'] and len(inputs)>0
+          with tarfile.open(archive,'r:gz') as tf:
+              ms=tf.getmembers()
+              assert ms and len(ms)==len(man['files'])
+              assert set(m.name for m in ms)==set(man['files'])
+              assert all(m.isfile() and 0<m.size<=8*1024*1024 and not m.name.startswith('/') and '..' not in Path(m.name).parts for m in ms)
+              assert all(hashlib.sha256(tf.extractfile(m).read()).hexdigest()==man['files'][m.name] for m in ms)
+          print('P49_MATCHED_PHONE_VERIFIED inputs='+str(len(inputs))+' members='+str(len(ms))+' bytes='+str(archive.stat().st_size)+' sha256='+sha)
+          PY
+          test -z "$(git diff --name-only -- . ':!phone-web.json' ':!phone-web.tar.gz')"
+      - name: Publish only checked phone assets to unchanged private draft branch
+        shell: bash
+        env:
+          HAMKAR_PRIVATE_REPO_TOKEN: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test "$(git -C hamkar rev-parse HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
+          test -n "$HAMKAR_PRIVATE_REPO_TOKEN"
+          ASKPASS="$RUNNER_TEMP/p49-git-askpass.sh"
+          cat > "$ASKPASS" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf 'x-access-token' ;;
+            *Password*) printf '%s' "$HAMKAR_PRIVATE_REPO_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          SH
+          chmod 700 "$ASKPASS"
+          export GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0
+          REMOTE="https://github.com/hosseiniahmad71/Hamkar-erp.git"
+          LIVE="$(git -C hamkar ls-remote "$REMOTE" "refs/heads/$HAMKAR_EXPECTED_PRIVATE_BRANCH" | cut -f1)"
+          test "$LIVE" = "$HAMKAR_EXPECTED_SOURCE_SHA" || { echo "P49_PRIVATE_BRANCH_MOVED_STOP"; exit 1; }
+          git -C hamkar add -- prototypes/mobile-workbench-v4/phone-web.json prototypes/mobile-workbench-v4/phone-web.tar.gz
+          test "$(git -C hamkar diff --cached --name-only | wc -l)" -eq 2
+          git -C hamkar -c user.name='hamkar-ci-runner[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build(p49): verified exact-SHA phone assets [phone-build]' >"$RUNNER_TEMP/p49-commit.log" 2>&1
+          test "$(git -C hamkar rev-parse HEAD^)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
+          git -C hamkar push --quiet "$REMOTE" "HEAD:refs/heads/$HAMKAR_EXPECTED_PRIVATE_BRANCH" >"$RUNNER_TEMP/p49-push.log" 2>&1 || { echo "P49_PRIVATE_PUBLISH_FAILED"; exit 1; }
+          echo "P49_PRIVATE_PHONE_PUBLISHED_SHA=$(git -C hamkar rev-parse HEAD)"
+          echo "P49_PRIVATE_SOURCE_SHA=$HAMKAR_EXPECTED_SOURCE_SHA"

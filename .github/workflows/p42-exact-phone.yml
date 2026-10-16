@@ -105,35 +105,49 @@ jobs:
           PY
           test -z "$(git diff --name-only -- . ':!phone-web.json' ':!phone-web.tar.gz')"
 
-      - name: Publish verified package ONLY into pinned private feature branch
+      - name: Checkout public helper only for one-time encryption public key
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/hamkar-ci-runner
+          ref: ci/p42-basalam-phone-20261016
+          path: helper
+          persist-credentials: false
+
+      - name: Seal private phone archive before public artifact upload
         shell: bash
-        env:
-          HAMKAR_PRIVATE_REPO_TOKEN: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-        working-directory: hamkar
+        working-directory: hamkar/prototypes/mobile-workbench-v4
         run: |
           set -euo pipefail
-          test -n "$HAMKAR_PRIVATE_REPO_TOKEN"
-          test "$HAMKAR_EXPECTED_BRANCH" = "fix/p40-basalam-inventory-link-20261016"
-          test "$(git rev-parse HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
-          ASKPASS="$(mktemp "$RUNNER_TEMP/hamkar-askpass.XXXXXX")"
-          chmod 700 "$ASKPASS"
-          trap 'rm -f "$ASKPASS"' EXIT
-          cat > "$ASKPASS" <<'EOF'
-          #!/usr/bin/env bash
-          case "${1:-}" in
-            *Username*) printf '%s' x-access-token ;;
-            *Password*) printf '%s' "$HAMKAR_PRIVATE_REPO_TOKEN" ;;
-            *) exit 1 ;;
-          esac
-          EOF
-          export GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0
-          git fetch --no-tags origin "refs/heads/$HAMKAR_EXPECTED_BRANCH"
-          test "$(git rev-parse FETCH_HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
-          git add -- prototypes/mobile-workbench-v4/phone-web.json prototypes/mobile-workbench-v4/phone-web.tar.gz
-          test -z "$(git diff --cached --name-only -- . ':!prototypes/mobile-workbench-v4/phone-web.json' ':!prototypes/mobile-workbench-v4/phone-web.tar.gz')"
-          git diff --cached --quiet && { echo "ERROR: phone archive unchanged; no new build commit"; exit 1; }
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git -c core.hooksPath=/dev/null commit -m "build(basalam): verified P42 phone bundle from 3dfd40afbfa8 [no deploy]"
-          git -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/$HAMKAR_EXPECTED_BRANCH"
-          echo 'PRIVATE_FEATURE_BRANCH_PHONE_BUNDLE_PUBLISHED (no public source artifact)'
+          python - <<'PY'
+          import os,io,zipfile,json,base64,hashlib
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives import hashes,serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          p=Path.cwd()
+          public=serialization.load_pem_public_key((p/'../../../helper/.github/p42-artifact-encryption-public.pem').resolve().read_bytes())
+          bio=io.BytesIO()
+          with zipfile.ZipFile(bio,'w',compression=zipfile.ZIP_STORED) as z:
+              z.write(p/'phone-web.json',arcname='phone-web.json')
+              z.write(p/'phone-web.tar.gz',arcname='phone-web.tar.gz')
+          payload=bio.getvalue();key=os.urandom(32);nonce=os.urandom(12)
+          sha=os.environ['HAMKAR_EXPECTED_SOURCE_SHA']
+          sealed=AESGCM(key).encrypt(nonce,payload,sha.encode('ascii'))
+          wrapped=public.encrypt(key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          envelope={'version':'HAMKAR_P42_RSA_OAEP_AES256_GCM_V1','source_sha':sha,
+              'nonce':base64.b64encode(nonce).decode(),'wrapped_key':base64.b64encode(wrapped).decode(),
+              'sealed_zip':base64.b64encode(sealed).decode()}
+          dest=Path(os.environ['GITHUB_WORKSPACE'])/'p42-sealed';dest.mkdir(mode=0o700,exist_ok=True)
+          path=dest/'package.sealed.json'
+          path.write_text(json.dumps(envelope,separators=(',',':')))
+          print('ENCRYPTED_HANDOFF_READY bytes='+str(path.stat().st_size)+' sha='+sha)
+          PY
+
+      - name: Upload encrypted-only package (never raw private output)
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-p42-sealed-3dfd40a
+          path: p42-sealed/package.sealed.json
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0

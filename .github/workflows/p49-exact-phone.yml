@@ -115,22 +115,6 @@ jobs:
           ref: ci/p49-basalam-phone-20261017
           path: helper
           persist-credentials: false
-      - name: Chromium RTL 320/390/768 with synthetic API only
-        working-directory: hamkar/prototypes/mobile-workbench-v4
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx playwright install --with-deps chromium >"$RUNNER_TEMP/p49-playwright-install.log" 2>&1 || { echo "P49_BROWSER_INSTALL_FAILED"; exit 1; }
-          npx vite preview --host 127.0.0.1 --port 4177 >"$RUNNER_TEMP/p49-vite.log" 2>&1 &
-          SERVER_PID=$!
-          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-          for i in $(seq 1 40); do
-            if curl --fail --silent --output /dev/null http://127.0.0.1:4177/; then break; fi
-            sleep 1
-          done
-          curl --fail --silent --output /dev/null http://127.0.0.1:4177/
-          node "$GITHUB_WORKSPACE/helper/.github/p49-responsive-smoke.cjs" >"$RUNNER_TEMP/p49-browser.log" 2>&1 || { echo "P49_CHROMIUM_SMOKE_FAILED"; grep -oE 'P49_CHROMIUM_FAIL_CLASS=P49_[A-Z0-9_]+' "$RUNNER_TEMP/p49-browser.log" | tail -1 || true; exit 1; }
-          echo "P49_CHROMIUM_RESPONSIVE_PASS widths=320,390,768"
       - name: Seal P49 private assets with existing public key
         shell: bash
         working-directory: hamkar/prototypes/mobile-workbench-v4
@@ -168,3 +152,21 @@ jobs:
           retention-days: 3
           if-no-files-found: error
           compression-level: 0
+      - name: Chromium RTL 320/390/768 with synthetic API only
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium >"$RUNNER_TEMP/p49-playwright-install.log" 2>&1 || { echo "P49_BROWSER_INSTALL_FAILED"; exit 1; }
+          npx vite preview --host 127.0.0.1 --port 4177 >"$RUNNER_TEMP/p49-vite.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4177/; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --output /dev/null http://127.0.0.1:4177/
+          test -s "$GITHUB_WORKSPACE/helper/.github/p49-responsive-smoke.cjs" || { echo "P49_BROWSER_SCRIPT_MISSING"; exit 1; }
+          node --check "$GITHUB_WORKSPACE/helper/.github/p49-responsive-smoke.cjs" >"$RUNNER_TEMP/p49-syntax.log" 2>&1 || { echo "P49_BROWSER_SCRIPT_SYNTAX"; exit 1; }
+          node "$GITHUB_WORKSPACE/helper/.github/p49-responsive-smoke.cjs" >"$RUNNER_TEMP/p49-browser.log" 2>&1 || { echo "P49_CHROMIUM_SMOKE_FAILED"; python -c 'import pathlib,sys; t=pathlib.Path(sys.argv[1]).read_text(errors="replace"); c="MISSING_MODULE" if "Cannot find module" in t else "UNKNOWN_MODULE" if "MODULE_NOT_FOUND" in t else "P49_ASSERTION" if "P49_CHROMIUM_FAIL_CLASS=" in t else "TIMEOUT" if "TimeoutError" in t else "NODE_ERROR" if "Error:" in t else "UNKNOWN"; print("P49_CHROMIUM_FAILURE_CLASS="+c+" log_bytes="+str(len(t)))' "$RUNNER_TEMP/p49-browser.log"; grep -oE 'P49_CHROMIUM_FAIL_CLASS=P49_[A-Z0-9_]+' "$RUNNER_TEMP/p49-browser.log" | tail -1 || true; exit 1; }
+          echo "P49_CHROMIUM_RESPONSIVE_PASS widths=320,390,768"

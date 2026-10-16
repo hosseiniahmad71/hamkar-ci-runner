@@ -85,6 +85,10 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/build-phone-web.py --source-sha "$HAMKAR_EXPECTED_SOURCE_SHA" >"$RUNNER_TEMP/p49-build.log" 2>&1 || { echo "P49_BUILD_FAILED"; exit 1; }
+          sha256sum phone-web.tar.gz phone-web.json > "$RUNNER_TEMP/p49-build-sha256"
+          python scripts/build-phone-web.py --source-sha "$HAMKAR_EXPECTED_SOURCE_SHA" >"$RUNNER_TEMP/p49-second-build.log" 2>&1 || { echo "P49_SECOND_BUILD_FAILED"; exit 1; }
+          sha256sum --check --status "$RUNNER_TEMP/p49-build-sha256" || { echo "P49_REPRODUCIBILITY_FAILED"; exit 1; }
+          echo "P49_BYTE_FOR_BYTE_REPRODUCIBLE=PASS"
           python - <<'PY'
           import hashlib, json, tarfile
           from pathlib import Path
@@ -127,7 +131,7 @@ jobs:
           from cryptography.hazmat.primitives import hashes,serialization
           from cryptography.hazmat.primitives.asymmetric import padding
           root=Path.cwd()
-          public=serialization.load_pem_public_key((root/'../../../helper/.github/p42-artifact-encryption-public.pem').resolve().read_bytes())
+          public=serialization.load_pem_public_key((root/'../../../helper/.github/p49-handoff-public.pem').resolve().read_bytes())
           buf=io.BytesIO()
           with zipfile.ZipFile(buf,'w',compression=zipfile.ZIP_STORED) as zipped:
               zipped.write(root/'phone-web.json',arcname='phone-web.json')

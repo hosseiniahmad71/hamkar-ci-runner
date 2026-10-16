@@ -103,7 +103,7 @@ jobs:
               assert all(hashlib.sha256(b.extractfile(m).read()).hexdigest()==manifest['files'][m.name] for m in members)
           print('PHONE_BUNDLE_VERIFIED archive_bytes='+str(archive.stat().st_size))
           PY
-          test -z "$(git diff --name-only -- . ':!prototypes/mobile-workbench-v4/phone-web.json' ':!prototypes/mobile-workbench-v4/phone-web.tar.gz')"
+          test -z "$(git diff --name-only -- . ':!phone-web.json' ':!phone-web.tar.gz')"
 
       - name: Publish verified package ONLY into pinned private feature branch
         shell: bash

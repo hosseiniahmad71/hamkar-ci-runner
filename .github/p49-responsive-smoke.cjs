@@ -5,6 +5,7 @@ const path=require('node:path');
 let chromium;
 try{({chromium}=require(require.resolve('@playwright/test',{paths:[process.cwd()]})))}catch(error){console.log('P49_CHROMIUM_FAIL_CLASS=P49_IMPORT_DEPENDENCY');process.exit(1)}
 
+let syntheticRouteFault='';
 async function run(){
  const state={revision:7,scope:'ISOLATED_PREVIEW',updated_at:'2026-10-16T00:00:00Z',
    products:[],stock_movements:[],catalog:{cats:[],subcats:[],brands:[],shared_params:{},subcat_params:{}},
@@ -34,6 +35,7 @@ async function run(){
    page.on('pageerror',e=>errors.push(e.name));
    await page.route(/^https:\/\/(?!127\.0\.0\.1)/,route=>route.abort());
    await page.route('**/__erp_preview/**',async route=>{
+     try{
      const req=route.request(),key=new URL(req.url()).pathname.replace('/__erp_preview/','');let body;
      if(key==='state')body=state;
      else if(key==='about')body={runtime_source_sha:'SYNTHETIC',frontend_source_sha:null,python:'test',packages:{}};
@@ -41,6 +43,7 @@ async function run(){
      else if(key==='platforms/basalam')body={panels:[panel]};
      else if(key==='bundle-products')body={products:[],selectable_ids:[]};
      else if(key==='basalam-pricing/catalog')body=pricing;
+     else if(key==='basalam-pricing')body={history:[],revision:state.revision,config:{default_commission:'6.5',default_profit:'50',default_packaging:'10000',weekly:false,use_tariff:true,products:{}},tariff:{rows:844,rate_groups:23,version:'1405-07'}};
      else if(key==='platforms/basalam/store')body={panel,cache:{scope_id:'synthetic-scope',provider:'basalam',panel_id:'first',vendor_id:'44',
        pages:{'1':{page:1,total_pages:1,rows:[row],received_count:1,catalog_policy:'basalam-products-v2'}},
        details:{'31':row},orders:{}},links:[],revision:state.revision};
@@ -53,8 +56,15 @@ async function run(){
        assert.deepEqual(JSON.parse(sent.expected),{primary_price:4000000});
        row.variations[0].primary_price='4100000';
        body={detail:row,edit_verified:true,variation_id:'7'};
-     } else throw new Error('P49_UNEXPECTED_API');
+     } else {
+       syntheticRouteFault='P49_UNEXPECTED_API';
+       body={};
+     }
      await route.fulfill({json:body});
+     }catch(error){
+       syntheticRouteFault='P49_SYNTHETIC_ROUTE_FAILURE';
+       try{await route.fulfill({status:500,json:{detail:'Synthetic test fixture error'}})}catch{/* response may already be sent */}
+     }
    });
    await page.goto('http://127.0.0.1:4177/#marketplaces/basalam/first');
    await page.locator('.bs-catalog-finance .bs-profit-value').waitFor({timeout:15000});
@@ -96,4 +106,4 @@ async function run(){
    console.log('P49_CHROMIUM_PASS widths=320,390,768 profit_rows=3 variations=2 sparse_patch=1');
  } finally {await browser.close();}
 }
-run().catch(error=>{const label=/^P49_[A-Z0-9_]+$/.test(String(error.message))?error.message:'P49_BROWSER_UNKNOWN';console.log('P49_CHROMIUM_FAIL_CLASS='+label);process.exitCode=1;});
+run().catch(error=>{const label=syntheticRouteFault||(/^P49_[A-Z0-9_]+$/.test(String(error.message))?error.message:'P49_BROWSER_UNKNOWN');console.log('P49_CHROMIUM_FAIL_CLASS='+label);process.exitCode=1;});

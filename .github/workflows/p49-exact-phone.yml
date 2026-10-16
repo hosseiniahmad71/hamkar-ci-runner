@@ -53,7 +53,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile ../../../backend/integrations/basalam.py platforms.py platform_worker.py store_projection.py basalam_variations.py test_basalam_p49.py || { echo "P49_PY_COMPILE_FAILED"; exit 1; }
-          python -m pytest -q test_basalam_p42.py test_basalam_p47.py test_basalam_p48.py test_basalam_p49.py >"$RUNNER_TEMP/p49-pytest.log" 2>&1 || { echo "P49_PYTEST_FAILED"; grep -oE '[0-9]+ failed|[0-9]+ passed|[0-9]+ errors?' "$RUNNER_TEMP/p49-pytest.log" | tail -5 || true; exit 1; }
+          python -m pytest -q test_basalam_p42.py test_basalam_p47.py test_basalam_p48.py test_basalam_p49.py >"$RUNNER_TEMP/p49-pytest.log" 2>&1 || { echo "P49_PYTEST_FAILED"; grep -oE '[0-9]+ failed|[0-9]+ passed|[0-9]+ errors?' "$RUNNER_TEMP/p49-pytest.log" | tail -5 || true; python - "$RUNNER_TEMP/p49-pytest.log" <<'DIAG'
+          import re,sys
+          text=open(sys.argv[1],encoding='utf-8',errors='replace').read()
+          for case,category in re.findall(r'^FAILED (test_basalam_p(?:42|47|48|49)\.py::test_[A-Za-z0-9_]+)\s+-\s+([A-Za-z_]+)',text,re.M):
+              print('P49_FAILED_CASE='+case+' CLASS='+category)
+          DIAG
+          exit 1; }
           echo "P49_PYTEST_PASS"
           grep -oE '[0-9]+ passed' "$RUNNER_TEMP/p49-pytest.log" | tail -1 || true
       - name: Install locked frontend dependencies privately

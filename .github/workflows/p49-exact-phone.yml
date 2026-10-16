@@ -108,32 +108,63 @@ jobs:
           print('P49_MATCHED_PHONE_VERIFIED inputs='+str(len(inputs))+' members='+str(len(ms))+' bytes='+str(archive.stat().st_size)+' sha256='+sha)
           PY
           test -z "$(git diff --name-only -- . ':!phone-web.json' ':!phone-web.tar.gz')"
-      - name: Publish only checked phone assets to unchanged private draft branch
+      - name: Checkout public helper synthetic browser test and public encryption key
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/hamkar-ci-runner
+          ref: ci/p49-basalam-phone-20261017
+          path: helper
+          persist-credentials: false
+      - name: Chromium RTL 320/390/768 with synthetic API only
+        working-directory: hamkar/prototypes/mobile-workbench-v4
         shell: bash
-        env:
-          HAMKAR_PRIVATE_REPO_TOKEN: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
         run: |
           set -euo pipefail
-          test "$(git -C hamkar rev-parse HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
-          test -n "$HAMKAR_PRIVATE_REPO_TOKEN"
-          ASKPASS="$RUNNER_TEMP/p49-git-askpass.sh"
-          cat > "$ASKPASS" <<'SH'
-          #!/bin/sh
-          case "$1" in
-            *Username*) printf 'x-access-token' ;;
-            *Password*) printf '%s' "$HAMKAR_PRIVATE_REPO_TOKEN" ;;
-            *) exit 1 ;;
-          esac
-          SH
-          chmod 700 "$ASKPASS"
-          export GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0
-          REMOTE="https://github.com/hosseiniahmad71/Hamkar-erp.git"
-          LIVE="$(git -C hamkar ls-remote "$REMOTE" "refs/heads/$HAMKAR_EXPECTED_PRIVATE_BRANCH" | cut -f1)"
-          test "$LIVE" = "$HAMKAR_EXPECTED_SOURCE_SHA" || { echo "P49_PRIVATE_BRANCH_MOVED_STOP"; exit 1; }
-          git -C hamkar add -- prototypes/mobile-workbench-v4/phone-web.json prototypes/mobile-workbench-v4/phone-web.tar.gz
-          test "$(git -C hamkar diff --cached --name-only | wc -l)" -eq 2
-          git -C hamkar -c user.name='hamkar-ci-runner[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build(p49): verified exact-SHA phone assets [phone-build]' >"$RUNNER_TEMP/p49-commit.log" 2>&1
-          test "$(git -C hamkar rev-parse HEAD^)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
-          git -C hamkar push --quiet "$REMOTE" "HEAD:refs/heads/$HAMKAR_EXPECTED_PRIVATE_BRANCH" >"$RUNNER_TEMP/p49-push.log" 2>&1 || { echo "P49_PRIVATE_PUBLISH_FAILED"; python -c 'import pathlib,sys; s=pathlib.Path(sys.argv[1]).read_text(errors="replace").lower(); label="PERMISSION_OR_SCOPE" if any(k in s for k in ["403","permission denied","write access","not permitted"]) else "AUTHENTICATION" if any(k in s for k in ["authentication failed","could not read username","repository not found"]) else "REF_REJECTED" if any(k in s for k in ["rejected","non-fast-forward","protected branch"]) else "NETWORK_OR_UNKNOWN"; print("P49_PUBLISH_FAILURE_CLASS="+label)' "$RUNNER_TEMP/p49-push.log"; exit 1; }
-          echo "P49_PRIVATE_PHONE_PUBLISHED_SHA=$(git -C hamkar rev-parse HEAD)"
-          echo "P49_PRIVATE_SOURCE_SHA=$HAMKAR_EXPECTED_SOURCE_SHA"
+          npx playwright install --with-deps chromium >"$RUNNER_TEMP/p49-playwright-install.log" 2>&1 || { echo "P49_BROWSER_INSTALL_FAILED"; exit 1; }
+          npx vite preview --host 127.0.0.1 --port 4177 >"$RUNNER_TEMP/p49-vite.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4177/; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --output /dev/null http://127.0.0.1:4177/
+          node "$GITHUB_WORKSPACE/helper/.github/p49-responsive-smoke.cjs" >"$RUNNER_TEMP/p49-browser.log" 2>&1 || { echo "P49_CHROMIUM_SMOKE_FAILED"; grep -oE 'P49_CHROMIUM_FAIL_CLASS=P49_[A-Z0-9_]+' "$RUNNER_TEMP/p49-browser.log" | tail -1 || true; exit 1; }
+          echo "P49_CHROMIUM_RESPONSIVE_PASS widths=320,390,768"
+      - name: Seal P49 private assets with existing public key
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,hashlib,io,json,os,zipfile
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives import hashes,serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          root=Path.cwd()
+          public=serialization.load_pem_public_key((root/'../../../helper/.github/p42-artifact-encryption-public.pem').resolve().read_bytes())
+          buf=io.BytesIO()
+          with zipfile.ZipFile(buf,'w',compression=zipfile.ZIP_STORED) as zipped:
+              zipped.write(root/'phone-web.json',arcname='phone-web.json')
+              zipped.write(root/'phone-web.tar.gz',arcname='phone-web.tar.gz')
+          sha=os.environ['HAMKAR_EXPECTED_SOURCE_SHA']
+          key=os.urandom(32);nonce=os.urandom(12)
+          sealed=AESGCM(key).encrypt(nonce,buf.getvalue(),sha.encode('ascii'))
+          wrapped=public.encrypt(key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          envelope={'version':'HAMKAR_P49_RSA_OAEP_AES256_GCM_V1','source_sha':sha,
+             'nonce':base64.b64encode(nonce).decode(),'wrapped_key':base64.b64encode(wrapped).decode(),
+             'sealed_zip':base64.b64encode(sealed).decode()}
+          dest=Path(os.environ['GITHUB_WORKSPACE'])/'p49-sealed';dest.mkdir(mode=0o700,exist_ok=True)
+          file=dest/'package.sealed.json'
+          file.write_text(json.dumps(envelope,separators=(',',':')))
+          print('P49_ENCRYPTED_PACKAGE_READY bytes='+str(file.stat().st_size)+' source_sha='+sha)
+          PY
+      - name: Upload encrypted package only, never unencrypted private output
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-p49-sealed-1477b9c2
+          path: p49-sealed/package.sealed.json
+          retention-days: 3
+          if-no-files-found: error
+          compression-level: 0

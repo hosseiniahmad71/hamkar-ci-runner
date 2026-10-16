@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      HAMKAR_EXPECTED_SOURCE_SHA: ba24f315cb54d49b0f551ad8551a119a07a03171
+      HAMKAR_EXPECTED_SOURCE_SHA: 433a314c84dc9461aefeac1cb9a1668914584cb9
       HAMKAR_EXPECTED_PRIVATE_BRANCH: fix/p40-basalam-inventory-link-20261016
       PYTHONDONTWRITEBYTECODE: '1'
       CI: '1'
@@ -23,7 +23,7 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: ba24f315cb54d49b0f551ad8551a119a07a03171
+          ref: 433a314c84dc9461aefeac1cb9a1668914584cb9
           path: hamkar
           fetch-depth: 1
           persist-credentials: false
@@ -52,6 +52,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export PYTHONPATH="$(realpath ../../..)"
           python -m py_compile ../../../backend/integrations/basalam.py platforms.py platform_worker.py store_projection.py basalam_variations.py test_basalam_p49.py || { echo "P49_PY_COMPILE_FAILED"; exit 1; }
           python -m pytest -q test_basalam_p42.py test_basalam_p47.py test_basalam_p48.py test_basalam_p49.py >"$RUNNER_TEMP/p49-pytest.log" 2>&1 || { echo "P49_PYTEST_FAILED"; grep -oE '[0-9]+ failed|[0-9]+ passed|[0-9]+ errors?' "$RUNNER_TEMP/p49-pytest.log" | tail -5 || true; python - "$RUNNER_TEMP/p49-pytest.log" <<'DIAG'
           import re,sys
@@ -91,7 +92,7 @@ jobs:
           root=Path.cwd();man=json.loads((root/'phone-web.json').read_text())
           archive=root/'phone-web.tar.gz';sha=hashlib.sha256(archive.read_bytes()).hexdigest()
           assert man['scope']=='ISOLATED_PREVIEW'
-          assert man['build_source_sha']=='ba24f315cb54d49b0f551ad8551a119a07a03171'
+          assert man['build_source_sha']=='433a314c84dc9461aefeac1cb9a1668914584cb9'
           assert man['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
           assert sha==man['archive_sha256']
           spec=spec_from_file_location('verifyphone',root/'scripts/build-phone-web.py')

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      HAMKAR_EXPECTED_SOURCE_SHA: f3dd900fc62491f75d9952c0cbcfaee071a6b27f
+      HAMKAR_EXPECTED_SOURCE_SHA: 7df6bfd0b77b46b4db1f0c3a9068be36ee4775bb
       HAMKAR_EXPECTED_PRIVATE_BRANCH: fix/p40-basalam-inventory-link-20261016
       PYTHONDONTWRITEBYTECODE: '1'
       CI: '1'
@@ -23,7 +23,7 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: f3dd900fc62491f75d9952c0cbcfaee071a6b27f
+          ref: 7df6bfd0b77b46b4db1f0c3a9068be36ee4775bb
           path: hamkar
           fetch-depth: 1
           persist-credentials: false
@@ -96,7 +96,7 @@ jobs:
           root=Path.cwd();man=json.loads((root/'phone-web.json').read_text())
           archive=root/'phone-web.tar.gz';sha=hashlib.sha256(archive.read_bytes()).hexdigest()
           assert man['scope']=='ISOLATED_PREVIEW'
-          assert man['build_source_sha']=='f3dd900fc62491f75d9952c0cbcfaee071a6b27f'
+          assert man['build_source_sha']=='7df6bfd0b77b46b4db1f0c3a9068be36ee4775bb'
           assert man['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
           assert sha==man['archive_sha256']
           spec=spec_from_file_location('verifyphone',root/'scripts/build-phone-web.py')
@@ -169,7 +169,7 @@ jobs:
       - name: Upload encrypted-only P51 package
         uses: actions/upload-artifact@v4
         with:
-          name: hamkar-p51-sealed-f3dd900f
+          name: hamkar-p51-sealed-7df6bfd0
           path: p51-sealed/package.sealed.json
           retention-days: 2
           if-no-files-found: error

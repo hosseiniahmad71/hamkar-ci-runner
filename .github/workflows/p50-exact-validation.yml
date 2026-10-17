@@ -137,3 +137,40 @@ jobs:
           node --check "$GITHUB_WORKSPACE/helper/.github/p50-variation-smoke.cjs" >"$RUNNER_TEMP/p49-syntax.log" 2>&1 || { echo "P50_BROWSER_SCRIPT_SYNTAX"; exit 1; }
           node "$GITHUB_WORKSPACE/helper/.github/p50-variation-smoke.cjs" >"$RUNNER_TEMP/p49-browser.log" 2>&1 || { echo "P50_CHROMIUM_SMOKE_FAILED"; python -c 'import pathlib,sys; t=pathlib.Path(sys.argv[1]).read_text(errors="replace"); c="MISSING_MODULE" if "Cannot find module" in t else "UNKNOWN_MODULE" if "MODULE_NOT_FOUND" in t else "P50_ASSERTION" if "P50_CHROMIUM_FAIL_CLASS=" in t else "TIMEOUT" if "TimeoutError" in t else "NODE_ERROR" if "Error:" in t else "UNKNOWN"; print("P50_CHROMIUM_FAILURE_CLASS="+c+" log_bytes="+str(len(t)))' "$RUNNER_TEMP/p49-browser.log"; grep -oE 'P50_CHROMIUM_FAIL_CLASS=P50_[A-Z0-9_]+' "$RUNNER_TEMP/p49-browser.log" | tail -1 || true; exit 1; }
           echo "P50_CHROMIUM_RESPONSIVE_PASS widths=320,390,768"
+
+      - name: Seal P50 phone files with ephemeral public key
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,hashlib,io,json,os,zipfile
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives import hashes,serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          root=Path.cwd()
+          public=serialization.load_pem_public_key((root/'../../../helper/.github/p50-transfer-public.pem').resolve().read_bytes())
+          buf=io.BytesIO()
+          with zipfile.ZipFile(buf,'w',compression=zipfile.ZIP_STORED) as z:
+              z.write(root/'phone-web.json',arcname='phone-web.json')
+              z.write(root/'phone-web.tar.gz',arcname='phone-web.tar.gz')
+          sha=os.environ['HAMKAR_EXPECTED_SOURCE_SHA']
+          key=os.urandom(32);nonce=os.urandom(12)
+          sealed=AESGCM(key).encrypt(nonce,buf.getvalue(),sha.encode('ascii'))
+          wrapped=public.encrypt(key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          envelope={'version':'HAMKAR_P50_RSA_OAEP_AES256_GCM_V1','source_sha':sha,
+                    'nonce':base64.b64encode(nonce).decode(),'wrapped_key':base64.b64encode(wrapped).decode(),
+                    'sealed_zip':base64.b64encode(sealed).decode()}
+          dest=Path(os.environ['GITHUB_WORKSPACE'])/'p50-sealed';dest.mkdir(mode=0o700,exist_ok=True)
+          out=dest/'package.sealed.json';out.write_text(json.dumps(envelope,separators=(',',':')))
+          print('P50_ENCRYPTED_PACKAGE_READY bytes='+str(out.stat().st_size)+' source_sha='+sha)
+          PY
+      - name: Upload encrypted-only P50 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-p50-sealed-3e004abf
+          path: p50-sealed/package.sealed.json
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 0

@@ -5,7 +5,7 @@ const path=require('node:path');
 let chromium;
 try{({chromium}=require(require.resolve('@playwright/test',{paths:[process.cwd()]})))}catch(error){console.log('P49_CHROMIUM_FAIL_CLASS=P49_IMPORT_DEPENDENCY');process.exit(1)}
 
-let syntheticRouteFault='';
+let syntheticRouteFault='';let stage='START';
 async function run(){
  const state={revision:7,scope:'ISOLATED_PREVIEW',updated_at:'2026-10-16T00:00:00Z',
    products:[],stock_movements:[],catalog:{cats:[],subcats:[],brands:[],shared_params:{},subcat_params:{}},
@@ -113,8 +113,10 @@ async function run(){
    assert.equal(writes[0].product_id,'31');
    assert.equal(errors.length,0,'P49_BROWSER_PAGEERROR');
 
+   stage='P50_ROUTE_LINK';
    await page.goto('http://127.0.0.1:4177/#marketplaces/basalam/first/product/31/link');
    await page.locator('[data-inventory-variation-id="7"]').waitFor({timeout:15000});
+   stage='P50_LINKS_VISIBLE';
    assert.equal(await page.locator('[data-inventory-variation-id]').count(),2,'P50_INDEPENDENT_VARIANT_LINKS');
    assert.equal(await page.locator('[data-inventory-variation-id="7"] .bs-variation-inventory-count input').inputValue(),'500','P50_UNITS_FIRST');
    assert.equal(await page.locator('[data-inventory-variation-id="8"] .bs-variation-inventory-count input').inputValue(),'400','P50_UNITS_SECOND');
@@ -122,13 +124,16 @@ async function run(){
    const second=await page.locator('[data-inventory-variation-id="8"] .bs-variation-inventory-summary').innerText();
    assert.ok(first.includes('۵۰۰')&&second.includes('۴۰۰'),'P50_CONFIRMED_PACK_UNITS');
    assert.notEqual(first,second,'P50_DISTINCT_COSTS_AND_PROFITS');
+   stage='P50_LINK_WIDTHS';
    for(const width of [320,390,768]){
      await page.setViewportSize({width,height:980});
      const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);
      assert.equal(overflow,false,'P50_VARIANT_LINK_HORIZONTAL_OVERFLOW_'+width);
    }
+   stage='P50_ROUTE_PRICE';
    await page.goto('http://127.0.0.1:4177/#marketplaces/basalam/first/product/31/price');
    await page.getByText('قیمت و سود مستقل تنوع‌ها').waitFor({timeout:15000});
+   stage='P50_PRICE_VISIBLE';
    assert.equal(await page.locator('.bs-pricing').count(),0,'P50_PARENT_PRICING_DISABLED');
    assert.equal(await page.locator('.bs-variation-inventory-summary').count(),2,'P50_SEPARATE_VARIATION_PROFIT');
    assert.equal(writes.length,1,'P50_NO_PRICE_OR_STOCK_WRITE');
@@ -137,4 +142,4 @@ async function run(){
    console.log('P49_CHROMIUM_PASS widths=320,390,768 profit_rows=3 variations=2 sparse_patch=1');
  } finally {await browser.close();}
 }
-run().catch(error=>{const label=syntheticRouteFault||(/^P49_[A-Z0-9_]+$/.test(String(error.message))?error.message:'P49_BROWSER_UNKNOWN');console.log('P49_CHROMIUM_FAIL_CLASS='+label);process.exitCode=1;});
+run().catch(error=>{const message=String(error?.message||'');const kind=error?.name==='TimeoutError'?'TIMEOUT':error?.name==='AssertionError'?'ASSERT':message.includes('locator')?'LOCATOR':'OTHER';const label=syntheticRouteFault||(/^P50_[A-Z0-9_]+$/.test(message)?message:'P50_'+stage+'_'+kind);console.log('P50_CHROMIUM_FAIL_CLASS='+label.replace(/[^A-Z0-9_]/g,'').slice(0,120));process.exitCode=1;});

@@ -164,6 +164,7 @@ async function run(){
    }
    await page.goto('http://127.0.0.1:4177/#marketplaces/basalam/first/product/31');
    stage='P55_HELP_GENERAL';
+   await page.locator('.bs-general-lead').waitFor({timeout:15000});
    await helpBounds();
    stage='P54_SHARED_FORM';
    const shared=page.locator('.bs-general-details');
@@ -290,4 +291,4 @@ async function run(){
    console.log('P52B_CHROMIUM_PASS widths=320,390,768 queued_offline=1 live_provider_writes=0');
  } finally {await browser.close();}
 }
-run().catch(error=>{const message=String(error?.message||'');const kind=error?.name==='TimeoutError'?'TIMEOUT':error?.name==='AssertionError'?'ASSERT':message.includes('locator')?'LOCATOR':'OTHER';const label=syntheticRouteFault||(/^P50_[A-Z0-9_]+$/.test(message)?message:'P50_'+stage+'_'+kind);console.log('P50_CHROMIUM_FAIL_CLASS='+label.replace(/[^A-Z0-9_]/g,'').slice(0,120));console.log('P52B_DIAG='+String(error?.message||'').slice(0,180).replace(/[^a-zA-Z0-9 _:.=-]/g,''));process.exitCode=1;});
+run().catch(error=>{const message=String(error?.message||'');const kind=error?.name==='TimeoutError'?'TIMEOUT':error?.name==='AssertionError'?'ASSERT':message.includes('locator')?'LOCATOR':'OTHER';const label=syntheticRouteFault||(/^P(?:50|55)_[A-Z0-9_]+$/.test(message)?message:'P50_'+stage+'_'+kind);console.log('P55_CHROMIUM_FAIL_CLASS='+label.replace(/[^A-Z0-9_]/g,'').slice(0,120));console.log('P55_DIAG='+String(error?.message||'').slice(0,180).replace(/[^a-zA-Z0-9 _:.=-]/g,''));process.exitCode=1;});

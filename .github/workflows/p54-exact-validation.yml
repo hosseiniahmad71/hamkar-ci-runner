@@ -1,0 +1,208 @@
+name: HamKar P54 exact-SHA variation pricing and ranges
+on:
+  push:
+    branches:
+      - ci/p54-variant-shared-edit-20261017
+permissions:
+  contents: read
+concurrency:
+  group: hamkar-p54-exact-75a49749
+  cancel-in-progress: false
+jobs:
+  p51-test-and-build-private-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      HAMKAR_EXPECTED_SOURCE_SHA: 75a497491cc9c56fb324fe6e262df0fc2dea8bfc
+      HAMKAR_EXPECTED_PRIVATE_BRANCH: fix/p40-basalam-inventory-link-20261016
+      PYTHONDONTWRITEBYTECODE: '1'
+      CI: '1'
+    steps:
+      - name: Exact-SHA private checkout, no persisted token
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          ref: 75a497491cc9c56fb324fe6e262df0fc2dea8bfc
+          path: hamkar
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify checkout identity and remove origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "ci/p54-variant-shared-edit-20261017"
+          test "$(git -C hamkar rev-parse HEAD)" = "$HAMKAR_EXPECTED_SOURCE_SHA"
+          git -C hamkar remote remove origin
+          echo "P54_PRIVATE_SOURCE_SHA_VERIFIED=$HAMKAR_EXPECTED_SOURCE_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python synthetic-test dependencies privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --retries 0 -r hamkar/prototypes/mobile-workbench-v4/preview-api/requirements.txt 'cryptography>=43,<48' >"$RUNNER_TEMP/p49-pip.log" 2>&1 || { echo "P54_PYTHON_DEPENDENCY_ERROR"; exit 1; }
+          echo "P54_PYTHON_DEPENDENCIES_OK"
+      - name: Python syntax and scoped synthetic regression
+        working-directory: hamkar/prototypes/mobile-workbench-v4/preview-api
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$(realpath ../../..)"
+          python -m py_compile ../../../backend/integrations/basalam.py platforms.py platform_worker.py store_projection.py store_links.py basalam_variations.py basalam_variant_inventory.py basalam_pricing.py basalam_offline.py test_basalam_p49.py test_basalam_p50.py test_basalam_p51.py test_basalam_p52.py test_basalam_offline.py || { echo "P54_PY_COMPILE_FAILED"; exit 1; }
+          python -m pytest -q test_basalam_p42.py test_basalam_p47.py test_basalam_p48.py test_basalam_p49.py test_basalam_p50.py test_basalam_p51.py test_basalam_p52.py test_basalam_offline.py >"$RUNNER_TEMP/p49-pytest.log" 2>&1 || { echo "P54_PYTEST_FAILED"; grep -oE '[0-9]+ failed|[0-9]+ passed|[0-9]+ errors?' "$RUNNER_TEMP/p49-pytest.log" | tail -5 || true; python - "$RUNNER_TEMP/p49-pytest.log" <<'DIAG'
+          import re,sys
+          text=open(sys.argv[1],encoding='utf-8',errors='replace').read()
+          for case,category in re.findall(r'^FAILED (test_basalam_p(?:42|47|48|49|50)\.py::test_[A-Za-z0-9_]+)\s+-\s+([A-Za-z_]+)',text,re.M):
+              print('P54_FAILED_CASE='+case+' CLASS='+category)
+          DIAG
+          exit 1; }
+          echo "P54_PYTEST_PASS"
+          grep -oE '[0-9]+ passed' "$RUNNER_TEMP/p49-pytest.log" | tail -1 || true
+      - name: Install locked frontend dependencies privately
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund >"$RUNNER_TEMP/p49-npm.log" 2>&1 || { echo "P54_NPM_CI_FAILED"; exit 1; }
+          echo "P54_NPM_LOCKED_DEPS_OK"
+      - name: Targeted TypeScript and Vitest
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck >"$RUNNER_TEMP/p49-typecheck.log" 2>&1 || { echo "P54_TYPECHECK_FAILED"; grep -oE 'error TS[0-9]+' "$RUNNER_TEMP/p49-typecheck.log" | sort -u | head -12 || true; exit 1; }
+          echo "P54_TYPECHECK_PASS"
+          npx vitest run tests/basalam-domain.test.ts tests/basalam-money.test.ts tests/basalam-variations.test.ts tests/basalam-variant-inventory.test.ts tests/basalam-p51-variation-ranges.test.ts tests/basalam-p52-variation-ui.test.ts tests/basalam-offline-queue.test.ts >"$RUNNER_TEMP/p49-vitest.log" 2>&1 || { echo "P54_VITEST_FAILED"; grep -E 'FAIL |AssertionError|expected |received |Test Files|Tests |Error:|❯ |tests/|Cannot find|Unable to resolve' "$RUNNER_TEMP/p49-vitest.log" | tail -65 | head -65 || true; exit 1; }
+          echo "P54_VITEST_PASS"
+      - name: Reproducible matching phone archive with strict manifest check
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build-phone-web.py --source-sha "$HAMKAR_EXPECTED_SOURCE_SHA" >"$RUNNER_TEMP/p49-build.log" 2>&1 || { echo "P54_BUILD_FAILED"; exit 1; }
+          sha256sum phone-web.tar.gz phone-web.json > "$RUNNER_TEMP/p49-build-sha256"
+          python scripts/build-phone-web.py --source-sha "$HAMKAR_EXPECTED_SOURCE_SHA" >"$RUNNER_TEMP/p49-second-build.log" 2>&1 || { echo "P54_SECOND_BUILD_FAILED"; exit 1; }
+          sha256sum --check --status "$RUNNER_TEMP/p49-build-sha256" || { echo "P54_REPRODUCIBILITY_FAILED"; exit 1; }
+          echo "P54_BYTE_FOR_BYTE_REPRODUCIBLE=PASS"
+          python - <<'PY'
+          import hashlib, json, tarfile
+          from pathlib import Path
+          from importlib.util import spec_from_file_location,module_from_spec
+          root=Path.cwd();man=json.loads((root/'phone-web.json').read_text())
+          archive=root/'phone-web.tar.gz';sha=hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert man['scope']=='ISOLATED_PREVIEW'
+          assert man['build_source_sha']=='75a497491cc9c56fb324fe6e262df0fc2dea8bfc'
+          assert man['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
+          assert sha==man['archive_sha256']
+          spec=spec_from_file_location('verifyphone',root/'scripts/build-phone-web.py')
+          mod=module_from_spec(spec);spec.loader.exec_module(mod)
+          inputs={p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in mod.inputs(root)}
+          assert inputs==man['inputs'] and len(inputs)>0
+          with tarfile.open(archive,'r:gz') as tf:
+              ms=tf.getmembers()
+              assert ms and len(ms)==len(man['files'])
+              assert set(m.name for m in ms)==set(man['files'])
+              assert all(m.isfile() and 0<m.size<=8*1024*1024 and not m.name.startswith('/') and '..' not in Path(m.name).parts for m in ms)
+              assert all(hashlib.sha256(tf.extractfile(m).read()).hexdigest()==man['files'][m.name] for m in ms)
+          print('P54_MATCHED_PHONE_VERIFIED inputs='+str(len(inputs))+' members='+str(len(ms))+' bytes='+str(archive.stat().st_size)+' sha256='+sha)
+          PY
+          test -z "$(git diff --name-only -- . ':!phone-web.json' ':!phone-web.tar.gz')"
+      - name: Checkout public helper synthetic browser test and public encryption key
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/hamkar-ci-runner
+          ref: ci/p54-variant-shared-edit-20261017
+          path: helper
+          persist-credentials: false
+      - name: Chromium RTL 320/390/768 with synthetic API only
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium >"$RUNNER_TEMP/p49-playwright-install.log" 2>&1 || { echo "P54_BROWSER_INSTALL_FAILED"; exit 1; }
+          npx vite preview --host 127.0.0.1 --port 4177 >"$RUNNER_TEMP/p49-vite.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:4177/; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --output /dev/null http://127.0.0.1:4177/
+          test -s "$GITHUB_WORKSPACE/helper/.github/p54-variation-smoke.cjs" || { echo "P54_BROWSER_SCRIPT_MISSING"; exit 1; }
+          node --check "$GITHUB_WORKSPACE/helper/.github/p54-variation-smoke.cjs" >"$RUNNER_TEMP/p49-syntax.log" 2>&1 || { echo "P54_BROWSER_SCRIPT_SYNTAX"; exit 1; }
+          node "$GITHUB_WORKSPACE/helper/.github/p54-variation-smoke.cjs" >"$RUNNER_TEMP/p49-browser.log" 2>&1 || { echo "P54_CHROMIUM_SMOKE_FAILED"; python -c 'import pathlib,sys; t=pathlib.Path(sys.argv[1]).read_text(errors="replace"); c="MISSING_MODULE" if "Cannot find module" in t else "UNKNOWN_MODULE" if "MODULE_NOT_FOUND" in t else "P54_ASSERTION" if "P54_CHROMIUM_FAIL_CLASS=" in t else "TIMEOUT" if "TimeoutError" in t else "NODE_ERROR" if "Error:" in t else "UNKNOWN"; print("P54_CHROMIUM_FAILURE_CLASS="+c+" log_bytes="+str(len(t)))' "$RUNNER_TEMP/p49-browser.log"; grep -E 'P[0-9]+_CHROMIUM_FAIL_CLASS=|P54_DIAG=' "$RUNNER_TEMP/p49-browser.log" | tail -1 || true; exit 1; }
+          echo "P54_CHROMIUM_RESPONSIVE_PASS widths=320,390,768"
+
+      - name: Seal P54 phone files with ephemeral public key
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,hashlib,io,json,os,zipfile
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from cryptography.hazmat.primitives import hashes,serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          root=Path.cwd()
+          public=serialization.load_pem_public_key((root/'../../../helper/.github/p54-transfer-public.pem').resolve().read_bytes())
+          buf=io.BytesIO()
+          with zipfile.ZipFile(buf,'w',compression=zipfile.ZIP_STORED) as z:
+              z.write(root/'phone-web.json',arcname='phone-web.json')
+              z.write(root/'phone-web.tar.gz',arcname='phone-web.tar.gz')
+          sha=os.environ['HAMKAR_EXPECTED_SOURCE_SHA']
+          key=os.urandom(32);nonce=os.urandom(12)
+          sealed=AESGCM(key).encrypt(nonce,buf.getvalue(),sha.encode('ascii'))
+          wrapped=public.encrypt(key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          envelope={'version':'HAMKAR_P54_RSA_OAEP_AES256_GCM_V1','source_sha':sha,
+                    'nonce':base64.b64encode(nonce).decode(),'wrapped_key':base64.b64encode(wrapped).decode(),
+                    'sealed_zip':base64.b64encode(sealed).decode()}
+          dest=Path(os.environ['GITHUB_WORKSPACE'])/'p54-sealed';dest.mkdir(mode=0o700,exist_ok=True)
+          out=dest/'package.sealed.json';out.write_text(json.dumps(envelope,separators=(',',':')))
+          print('P54_ENCRYPTED_PACKAGE_READY bytes='+str(out.stat().st_size)+' source_sha='+sha)
+          PY
+      - name: Encrypted-only connector transfer (no raw source in public logs)
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,hashlib,os
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization,hashes
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers import Cipher,algorithms
+          root=Path.cwd()
+          source=os.environ['HAMKAR_EXPECTED_SOURCE_SHA']
+          manifest=(root/'phone-web.json').read_bytes()
+          archive=(root/'phone-web.tar.gz').read_bytes()
+          payload=len(manifest).to_bytes(4,'little')+manifest+archive
+          public=serialization.load_pem_public_key((root/'../../../helper/.github/p54-transfer-public.pem').resolve().read_bytes())
+          key=os.urandom(32);nonce=os.urandom(16)
+          cipher=Cipher(algorithms.ChaCha20(key,nonce),mode=None)
+          ct=cipher.encryptor().update(payload)
+          wrapped=public.encrypt(key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          print('P54C_SOURCE='+source)
+          print('P54C_NONCE='+base64.b64encode(nonce).decode())
+          print('P54C_WRAPPED_KEY='+base64.b64encode(wrapped).decode())
+          print('P54C_CIPHER_SHA256='+hashlib.sha256(ct).hexdigest())
+          print('P54C_PAYLOAD_BYTES='+str(len(payload)))
+          encoded=base64.b64encode(ct).decode()
+          size=2048
+          for offset in range(0,len(encoded),size):
+              print(f'P54C_CT_{offset//size:04d}='+encoded[offset:offset+size])
+          print('P54C_CT_END='+str((len(encoded)+size-1)//size))
+          PY
+      - name: Upload encrypted-only P54 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-p54-sealed-75a49749
+          path: p54-sealed/package.sealed.json
+          retention-days: 2
+          if-no-files-found: error
+          compression-level: 0

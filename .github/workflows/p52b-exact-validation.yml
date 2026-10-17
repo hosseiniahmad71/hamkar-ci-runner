@@ -166,6 +166,38 @@ jobs:
           out=dest/'package.sealed.json';out.write_text(json.dumps(envelope,separators=(',',':')))
           print('P52B_ENCRYPTED_PACKAGE_READY bytes='+str(out.stat().st_size)+' source_sha='+sha)
           PY
+      - name: Encrypted-only connector transfer (no raw source in public logs)
+        shell: bash
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,hashlib,os
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization,hashes
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers import Cipher,algorithms
+          root=Path.cwd()
+          source=os.environ['HAMKAR_EXPECTED_SOURCE_SHA']
+          manifest=(root/'phone-web.json').read_bytes()
+          archive=(root/'phone-web.tar.gz').read_bytes()
+          payload=len(manifest).to_bytes(4,'little')+manifest+archive
+          public=serialization.load_pem_public_key((root/'../../../helper/.github/p52b-transfer-public.pem').resolve().read_bytes())
+          key=os.urandom(32);nonce=os.urandom(16)
+          cipher=Cipher(algorithms.ChaCha20(key,nonce),mode=None)
+          ct=cipher.encryptor().update(payload)
+          wrapped=public.encrypt(key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          print('P52C_SOURCE='+source)
+          print('P52C_NONCE='+base64.b64encode(nonce).decode())
+          print('P52C_WRAPPED_KEY='+base64.b64encode(wrapped).decode())
+          print('P52C_CIPHER_SHA256='+hashlib.sha256(ct).hexdigest())
+          print('P52C_PAYLOAD_BYTES='+str(len(payload)))
+          encoded=base64.b64encode(ct).decode()
+          size=2048
+          for offset in range(0,len(encoded),size):
+              print(f'P52C_CT_{offset//size:04d}='+encoded[offset:offset+size])
+          print('P52C_CT_END='+str((len(encoded)+size-1)//size))
+          PY
       - name: Upload encrypted-only P52B package
         uses: actions/upload-artifact@v4
         with:

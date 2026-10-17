@@ -6,14 +6,14 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: hamkar-p55-exact-1189ad51
+  group: hamkar-p55-exact-8bc26bff
   cancel-in-progress: false
 jobs:
   p51-test-and-build-private-source:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      HAMKAR_EXPECTED_SOURCE_SHA: 1189ad51eb0196953e14ea62f6decb3e1d1ac9ee
+      HAMKAR_EXPECTED_SOURCE_SHA: 8bc26bffebfcb8c82d17fb288191f42c64c82a77
       HAMKAR_EXPECTED_PRIVATE_BRANCH: fix/p40-basalam-inventory-link-20261016
       PYTHONDONTWRITEBYTECODE: '1'
       CI: '1'
@@ -23,7 +23,7 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: 1189ad51eb0196953e14ea62f6decb3e1d1ac9ee
+          ref: 8bc26bffebfcb8c82d17fb288191f42c64c82a77
           path: hamkar
           fetch-depth: 1
           persist-credentials: false
@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           export PYTHONPATH="$(realpath ../../..)"
           python -m py_compile ../../../backend/integrations/basalam.py platforms.py platform_worker.py store_projection.py store_links.py basalam_variations.py basalam_variant_inventory.py basalam_pricing.py basalam_offline.py basalam_delivery.py test_basalam_p49.py test_basalam_p50.py test_basalam_p51.py test_basalam_p52.py test_basalam_offline.py test_basalam_p55.py || { echo "P55_PY_COMPILE_FAILED"; exit 1; }
-          python -m pytest -q test_basalam_p42.py test_basalam_p47.py test_basalam_p48.py test_basalam_p49.py test_basalam_p50.py test_basalam_p51.py test_basalam_p52.py test_basalam_offline.py >"$RUNNER_TEMP/p49-pytest.log" 2>&1 || { echo "P55_PYTEST_FAILED"; grep -oE '[0-9]+ failed|[0-9]+ passed|[0-9]+ errors?' "$RUNNER_TEMP/p49-pytest.log" | tail -5 || true; python - "$RUNNER_TEMP/p49-pytest.log" <<'DIAG'
+          python -m pytest -q test_basalam_p42.py test_basalam_p44.py test_basalam_p45.py test_basalam_p46.py test_basalam_p47.py test_basalam_p48.py test_basalam_p49.py test_basalam_p50.py test_basalam_p51.py test_basalam_p52.py test_basalam_offline.py >"$RUNNER_TEMP/p49-pytest.log" 2>&1 || { echo "P55_PYTEST_FAILED"; grep -oE '[0-9]+ failed|[0-9]+ passed|[0-9]+ errors?' "$RUNNER_TEMP/p49-pytest.log" | tail -5 || true; python - "$RUNNER_TEMP/p49-pytest.log" <<'DIAG'
           import re,sys
           text=open(sys.argv[1],encoding='utf-8',errors='replace').read()
           for case,category in re.findall(r'^FAILED (test_basalam_p(?:42|47|48|49|50)\.py::test_[A-Za-z0-9_]+)\s+-\s+([A-Za-z_]+)',text,re.M):
@@ -96,7 +96,7 @@ jobs:
           root=Path.cwd();man=json.loads((root/'phone-web.json').read_text())
           archive=root/'phone-web.tar.gz';sha=hashlib.sha256(archive.read_bytes()).hexdigest()
           assert man['scope']=='ISOLATED_PREVIEW'
-          assert man['build_source_sha']=='1189ad51eb0196953e14ea62f6decb3e1d1ac9ee'
+          assert man['build_source_sha']=='8bc26bffebfcb8c82d17fb288191f42c64c82a77'
           assert man['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
           assert sha==man['archive_sha256']
           spec=spec_from_file_location('verifyphone',root/'scripts/build-phone-web.py')
@@ -201,7 +201,7 @@ jobs:
       - name: Upload encrypted-only P55 package
         uses: actions/upload-artifact@v4
         with:
-          name: hamkar-p55-sealed-1189ad51
+          name: hamkar-p55-sealed-8bc26bff
           path: p55-sealed/package.sealed.json
           retention-days: 2
           if-no-files-found: error

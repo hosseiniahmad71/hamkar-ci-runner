@@ -276,8 +276,10 @@ async function run(){
    await page.getByLabel('تکرار قیمت‌گذاری',{exact:true}).selectOption('hours');
    await page.getByLabel('بازه قیمت‌گذاری',{exact:true}).fill('2');
    await power.click();
+   await page.waitForFunction(()=>document.querySelector('.bs-automation .bs-power-switch')?.getAttribute('aria-checked')==='true');
    assert.equal(await power.getAttribute('aria-checked'),'true','P55_GROUP_ENABLED');
    await power.click();
+   await page.waitForFunction(()=>document.querySelector('.bs-automation .bs-power-switch')?.getAttribute('aria-checked')==='false');
    assert.equal(await power.getAttribute('aria-checked'),'false','P55_GROUP_DISABLED');
    assert.equal(scheduleSaves.length,2,'P55_EXPLICIT_SCHEDULE_SAVE_ONLY');
    await helpBounds();

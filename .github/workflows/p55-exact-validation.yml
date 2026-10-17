@@ -6,14 +6,14 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: hamkar-p55-exact-8bc26bff
+  group: hamkar-p55-exact-6b0da448
   cancel-in-progress: false
 jobs:
   p51-test-and-build-private-source:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      HAMKAR_EXPECTED_SOURCE_SHA: 8bc26bffebfcb8c82d17fb288191f42c64c82a77
+      HAMKAR_EXPECTED_SOURCE_SHA: 6b0da448cbe66681cd86420b0904d0f1f1a1f870
       HAMKAR_EXPECTED_PRIVATE_BRANCH: fix/p40-basalam-inventory-link-20261016
       PYTHONDONTWRITEBYTECODE: '1'
       CI: '1'
@@ -23,7 +23,7 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: 8bc26bffebfcb8c82d17fb288191f42c64c82a77
+          ref: 6b0da448cbe66681cd86420b0904d0f1f1a1f870
           path: hamkar
           fetch-depth: 1
           persist-credentials: false
@@ -96,7 +96,7 @@ jobs:
           root=Path.cwd();man=json.loads((root/'phone-web.json').read_text())
           archive=root/'phone-web.tar.gz';sha=hashlib.sha256(archive.read_bytes()).hexdigest()
           assert man['scope']=='ISOLATED_PREVIEW'
-          assert man['build_source_sha']=='8bc26bffebfcb8c82d17fb288191f42c64c82a77'
+          assert man['build_source_sha']=='6b0da448cbe66681cd86420b0904d0f1f1a1f870'
           assert man['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
           assert sha==man['archive_sha256']
           spec=spec_from_file_location('verifyphone',root/'scripts/build-phone-web.py')
@@ -201,7 +201,7 @@ jobs:
       - name: Upload encrypted-only P55 package
         uses: actions/upload-artifact@v4
         with:
-          name: hamkar-p55-sealed-8bc26bff
+          name: hamkar-p55-sealed-6b0da448
           path: p55-sealed/package.sealed.json
           retention-days: 2
           if-no-files-found: error

@@ -139,7 +139,7 @@ async function run(){
    await page.waitForTimeout(500);
    assert.equal(queued.length,1,'P52B_ONE_DURABLE_VARIATION_QUEUE');
    assert.equal(writes.length,0,'P52B_NO_LIVE_PROVIDER_WRITE');
-   assert.equal(writes[0].product_id,'31');
+   assert.equal(queued[0].product_id,'31','P52B_QUEUED_PRODUCT_SCOPED');
    assert.equal(errors.length,0,'P49_BROWSER_PAGEERROR');
 
    stage='P50_ROUTE_LINK';

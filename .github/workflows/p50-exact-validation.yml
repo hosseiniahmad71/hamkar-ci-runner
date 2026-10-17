@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      HAMKAR_EXPECTED_SOURCE_SHA: d0764ca759fd78ce43e3e9c648634a431563c242
+      HAMKAR_EXPECTED_SOURCE_SHA: 3e004abfa045f82601d33efcb4e15b96954b4b32
       HAMKAR_EXPECTED_PRIVATE_BRANCH: fix/p40-basalam-inventory-link-20261016
       PYTHONDONTWRITEBYTECODE: '1'
       CI: '1'
@@ -23,7 +23,7 @@ jobs:
         with:
           repository: hosseiniahmad71/Hamkar-erp
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          ref: d0764ca759fd78ce43e3e9c648634a431563c242
+          ref: 3e004abfa045f82601d33efcb4e15b96954b4b32
           path: hamkar
           fetch-depth: 1
           persist-credentials: false
@@ -96,7 +96,7 @@ jobs:
           root=Path.cwd();man=json.loads((root/'phone-web.json').read_text())
           archive=root/'phone-web.tar.gz';sha=hashlib.sha256(archive.read_bytes()).hexdigest()
           assert man['scope']=='ISOLATED_PREVIEW'
-          assert man['build_source_sha']=='d0764ca759fd78ce43e3e9c648634a431563c242'
+          assert man['build_source_sha']=='3e004abfa045f82601d33efcb4e15b96954b4b32'
           assert man['source_pin_kind']=='EXPLICIT_GITHUB_READBACK'
           assert sha==man['archive_sha256']
           spec=spec_from_file_location('verifyphone',root/'scripts/build-phone-web.py')

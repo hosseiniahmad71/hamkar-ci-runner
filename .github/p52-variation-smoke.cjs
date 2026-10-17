@@ -159,7 +159,7 @@ async function run(){
    await page.goto('http://127.0.0.1:4177/#marketplaces/basalam/first/product/31/price');
    await page.getByText('قیمت و سود مستقل تنوع‌ها').waitFor({timeout:15000});
    stage='P50_PRICE_VISIBLE';
-   await page.locator('.bs-variant-collapse').first().locator('summary').click();
+   await page.locator('.bs-variation-inventory-item > summary').first().click();
    await page.locator('.bs-pricing').first().waitFor({timeout:15000});
    assert.equal(await page.locator('.bs-pricing').count(),2,'P51_SEPARATE_VARIANT_PRICING_FORMS');
    assert.equal(await page.getByText('سینک قیمت با باسلام').count(),0,'P51_VARIANT_NO_REMOTE_PRICE_WRITE');

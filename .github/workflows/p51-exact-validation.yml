@@ -77,7 +77,7 @@ jobs:
           set -euo pipefail
           npm run typecheck >"$RUNNER_TEMP/p49-typecheck.log" 2>&1 || { echo "P51_TYPECHECK_FAILED"; grep -oE 'error TS[0-9]+' "$RUNNER_TEMP/p49-typecheck.log" | sort -u | head -12 || true; exit 1; }
           echo "P51_TYPECHECK_PASS"
-          npx vitest run tests/basalam-domain.test.ts tests/basalam-money.test.ts tests/basalam-variations.test.ts tests/basalam-variant-inventory.test.ts tests/basalam-p51-variation-ranges.test.ts >"$RUNNER_TEMP/p49-vitest.log" 2>&1 || { echo "P51_VITEST_FAILED"; exit 1; }
+          npx vitest run tests/basalam-domain.test.ts tests/basalam-money.test.ts tests/basalam-variations.test.ts tests/basalam-variant-inventory.test.ts tests/basalam-p51-variation-ranges.test.ts >"$RUNNER_TEMP/p49-vitest.log" 2>&1 || { echo "P51_VITEST_FAILED"; grep -E 'FAIL |AssertionError|expected |received |Test Files|Tests |Error:|❯ |tests/|Cannot find|Unable to resolve' "$RUNNER_TEMP/p49-vitest.log" | tail -65 | head -65 || true; exit 1; }
           echo "P51_VITEST_PASS"
       - name: Reproducible matching phone archive with strict manifest check
         working-directory: hamkar/prototypes/mobile-workbench-v4

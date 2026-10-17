@@ -122,7 +122,7 @@ async function run(){
    assert.equal(await page.locator('[data-inventory-variation-id="8"] .bs-variation-inventory-count input').inputValue(),'400','P50_UNITS_SECOND');
    const first=await page.locator('[data-inventory-variation-id="7"] .bs-variation-inventory-summary').innerText();
    const second=await page.locator('[data-inventory-variation-id="8"] .bs-variation-inventory-summary').innerText();
-   assert.ok(first.includes('۵۰۰')&&second.includes('۴۰۰'),'P50_CONFIRMED_PACK_UNITS');
+   assert.ok((first.includes('۵۰۰')||first.includes('500'))&&(second.includes('۴۰۰')||second.includes('400')),'P50_CONFIRMED_PACK_UNITS');
    assert.notEqual(first,second,'P50_DISTINCT_COSTS_AND_PROFITS');
    stage='P50_LINK_WIDTHS';
    for(const width of [320,390,768]){

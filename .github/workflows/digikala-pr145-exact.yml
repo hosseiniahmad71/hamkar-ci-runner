@@ -12,15 +12,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 'f985ca77b12f80b5a17471b6306d8e7d898118fa'
+          ref: 'a21c40469f99e8a7746cd3723c64cc8197a17463'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
       - name: Verify immutable source
         run: |
-          test "$(git -C source rev-parse HEAD)" = "f985ca77b12f80b5a17471b6306d8e7d898118fa"
+          test "$(git -C source rev-parse HEAD)" = "a21c40469f99e8a7746cd3723c64cc8197a17463"
           git -C source remote remove origin
-          echo "TARGET_SHA=f985ca77b12f80b5a17471b6306d8e7d898118fa"
+          echo "TARGET_SHA=a21c40469f99e8a7746cd3723c64cc8197a17463"
           echo "OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY"
       - uses: actions/setup-python@v5
         with:
@@ -40,6 +40,7 @@ jobs:
         working-directory: source/prototypes/mobile-workbench-v4
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           result=0
           check() {
@@ -58,6 +59,39 @@ jobs:
           check pytest bash -c 'cd preview-api && python -m pytest -q test_digikala_staged_detail.py test_digikala_detail_projection.py test_digikala_catalog_read.py test_storefront.py'
           check vitest npm test -- --reporter=dot
           check build npm run build
-          check browser npx playwright test --config playwright.digikala.config.ts digikala-catalog.spec.ts --reporter=line
+          check browser bash -c 'npx playwright test --config playwright.digikala.config.ts digikala-catalog.spec.ts --reporter=json >"$RUNNER_TEMP/browser-results.json"'
           echo "OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY"
           exit "$result"
+
+      - name: Synthetic browser verdicts only
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'browser-results.json'
+          if not p.exists(): print('browser_summary=NO_REPORT'); raise SystemExit(0)
+          try: data=json.loads(p.read_text())
+          except ValueError: print('browser_summary=INVALID_REPORT'); raise SystemExit(0)
+          print('browser_statistics='+json.dumps(data.get('stats',{})))
+          def walk(suite):
+              for spec in suite.get('specs',[]):
+                  for test in spec.get('tests',[]):
+                      for result in test.get('results',[]):
+                          if result.get('status') not in ('passed','skipped'):
+                              print('synthetic_failed_case='+spec.get('title',''))
+                              for error in result.get('errors',[]):
+                                  clean=re.sub(r'\x1b\\[[0-9;]*m','',error.get('message',''))
+                                  for line in clean.splitlines():
+                                      if re.match(r'^\\s*(Error:|Expected:|Received:|Timeout:|Locator:)',line): print(line[:400])
+              for child in suite.get('suites',[]):walk(child)
+          for suite in data.get('suites',[]):walk(suite)
+          PY
+      - name: Synthetic UI screenshots only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-digikala-viewports
+          path: source/prototypes/mobile-workbench-v4/evidence/digikala-*.png
+          if-no-files-found: ignore

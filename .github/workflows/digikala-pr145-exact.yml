@@ -1,0 +1,63 @@
+name: DigiKala PR145 exact SHA engineering checks
+on:
+  push:
+    branches: ['ci/dk145-f985ca77-20261020']
+permissions:
+  contents: read
+jobs:
+  digikala:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 'f985ca77b12f80b5a17471b6306d8e7d898118fa'
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: source
+      - name: Verify immutable source
+        run: |
+          test "$(git -C source rev-parse HEAD)" = "f985ca77b12f80b5a17471b6306d8e7d898118fa"
+          git -C source remote remove origin
+          echo "TARGET_SHA=f985ca77b12f80b5a17471b6306d8e7d898118fa"
+          echo "OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install engineering dependencies
+        working-directory: source/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q -r preview-api/requirements.txt >"$RUNNER_TEMP/pip.log" 2>&1 || { echo "Python dependency installation failed; private log withheld"; exit 1; }
+          npm ci --no-audit --no-fund >"$RUNNER_TEMP/npm.log" 2>&1 || { echo "Frontend dependency installation failed; private log withheld"; exit 1; }
+          npx playwright install --with-deps chromium >"$RUNNER_TEMP/chromium.log" 2>&1 || { echo "Chromium installation failed; private log withheld"; exit 1; }
+      - name: Run isolated checks without publishing private source
+        working-directory: source/prototypes/mobile-workbench-v4
+        shell: bash
+        run: |
+          set -uo pipefail
+          result=0
+          check() {
+            label="$1"; shift
+            "$@" >"$RUNNER_TEMP/$label.log" 2>&1
+            code=$?
+            if [ "$code" = 0 ]; then echo "$label=PASS"; else echo "$label=FAIL private log withheld"; result=1; fi
+            python - "$RUNNER_TEMP/$label.log" <<'PY'
+          import re,sys
+          text=open(sys.argv[1]).read()
+          for pattern in (r"\b(\d+) passed", r"Test Files\s+(\d+) passed", r"Tests\s+(\d+) passed"):
+              values=re.findall(pattern,text)
+              if values: print("verified_summary="+pattern+" counts="+",".join(values))
+          PY
+          }
+          check pytest bash -c 'cd preview-api && python -m pytest -q test_digikala_staged_detail.py test_digikala_detail_projection.py test_digikala_catalog_read.py test_storefront.py'
+          check vitest npm test -- --reporter=dot
+          check build npm run build
+          check browser npx playwright test --config playwright.digikala.config.ts digikala-catalog.spec.ts --reporter=line
+          echo "OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY"
+          exit "$result"

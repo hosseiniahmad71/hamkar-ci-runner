@@ -12,15 +12,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 'a21c40469f99e8a7746cd3723c64cc8197a17463'
+          ref: 'd52b723d39d3b32126d2c684709a95de95abcefd'
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           path: source
       - name: Verify immutable source
         run: |
-          test "$(git -C source rev-parse HEAD)" = "a21c40469f99e8a7746cd3723c64cc8197a17463"
+          test "$(git -C source rev-parse HEAD)" = "d52b723d39d3b32126d2c684709a95de95abcefd"
           git -C source remote remove origin
-          echo "TARGET_SHA=a21c40469f99e8a7746cd3723c64cc8197a17463"
+          echo "TARGET_SHA=d52b723d39d3b32126d2c684709a95de95abcefd"
           echo "OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY"
       - uses: actions/setup-python@v5
         with:
@@ -59,7 +59,7 @@ jobs:
           check pytest bash -c 'cd preview-api && python -m pytest -q test_digikala_staged_detail.py test_digikala_detail_projection.py test_digikala_catalog_read.py test_storefront.py'
           check vitest npm test -- --reporter=dot
           check build npm run build
-          check browser bash -c 'npx playwright test --config playwright.digikala.config.ts digikala-catalog.spec.ts --reporter=json >"$RUNNER_TEMP/browser-results.json"'
+          check browser bash -c 'rm -f evidence/digikala-*.png; npx playwright test --config playwright.digikala.config.ts digikala-catalog.spec.ts --reporter=json >"$RUNNER_TEMP/browser-results.json"'
           echo "OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY"
           exit "$result"
 

@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 558d3b9e6458d217da3afe0e5cabbfe118dfbb62
+          ref: 42e5c9a7260265837fb39c8a8ed339637ed649c1
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 2
@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C source rev-parse HEAD)" = "558d3b9e6458d217da3afe0e5cabbfe118dfbb62"
+          test "$(git -C source rev-parse HEAD)" = "42e5c9a7260265837fb39c8a8ed339637ed649c1"
           git -C source remote remove origin
           echo 'EXACT_SOURCE=PASS'
       - uses: actions/setup-node@v4
@@ -55,20 +55,20 @@ jobs:
         working-directory: source/prototypes/mobile-workbench-v4
         run: |
           set -euo pipefail
-          python scripts/build-phone-web.py --source-sha 558d3b9e6458d217da3afe0e5cabbfe118dfbb62 >"$RUNNER_TEMP/build.log" 2>&1 || { echo 'PHONE_BUILD=FAIL'; exit 1; }
+          python scripts/build-phone-web.py --source-sha 42e5c9a7260265837fb39c8a8ed339637ed649c1 >"$RUNNER_TEMP/build.log" 2>&1 || { echo 'PHONE_BUILD=FAIL'; exit 1; }
           git add -- phone-web.json phone-web.tar.gz
           git -c user.name='HamKar package runner' -c user.email='hamkar-ci@users.noreply.github.com' commit -m 'build(phone): mobile logo/card compactness at exact source'
-          test "$(git rev-parse HEAD^)" = "558d3b9e6458d217da3afe0e5cabbfe118dfbb62"
+          test "$(git rev-parse HEAD^)" = "42e5c9a7260265837fb39c8a8ed339637ed649c1"
           python - <<'PY'
           import json,runpy,subprocess,hashlib
           from pathlib import Path
           root=Path('.');m=json.loads((root/'phone-web.json').read_text())
-          assert m['build_source_sha']=='558d3b9e6458d217da3afe0e5cabbfe118dfbb62'
+          assert m['build_source_sha']=='42e5c9a7260265837fb39c8a8ed339637ed649c1'
           assert len(m['inputs'])==149,len(m['inputs'])
           assert len(m['files'])>=49
           tar=root/'phone-web.tar.gz'; assert hashlib.sha256(tar.read_bytes()).hexdigest()==m['archive_sha256']
           result=runpy.run_path('scripts/basalam-current-update.py')['verify_target_web'](subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
-          assert result=='558d3b9e6458d217da3afe0e5cabbfe118dfbb62'
+          assert result=='42e5c9a7260265837fb39c8a8ed339637ed649c1'
           print('LOCAL_EXACT_PACKAGE_PREFLIGHT=PASS')
           print('INPUTS='+str(len(m['inputs']))+' MEMBERS='+str(len(m['files'])))
           print('SHA256='+m['archive_sha256'])

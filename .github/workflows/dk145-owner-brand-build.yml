@@ -1,4 +1,4 @@
-name: HamKar PR145 committed package exact-SHA preflight
+name: HamKar PR145 mobile logo/card QA and private exact package
 on:
   push:
     branches:
@@ -6,48 +6,114 @@ on:
 permissions:
   contents: read
 jobs:
-  verify-committed-package:
+  qa-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
-      - name: Checkout immutable package target
+      - name: Checkout exact private source
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 6db61c169a63cda33520d4df6c7b11f988cb27d6
+          ref: 558d3b9e6458d217da3afe0e5cabbfe118dfbb62
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
-          fetch-depth: 0
+          fetch-depth: 2
           path: source
-      - name: Verify exact checkout and remove remote
+      - name: Verify exact source and remove remote
+        shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C source rev-parse HEAD)" = "6db61c169a63cda33520d4df6c7b11f988cb27d6"
+          test "$(git -C source rev-parse HEAD)" = "558d3b9e6458d217da3afe0e5cabbfe118dfbb62"
           git -C source remote remove origin
-          echo 'EXACT_CHECKOUT=PASS'
-      - name: Run existing exact-target updater preflight without running updater
-        working-directory: source
+          echo 'EXACT_SOURCE=PASS'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies in isolated runner
+        working-directory: source/prototypes/mobile-workbench-v4
         run: |
           set -euo pipefail
+          npm ci --no-audit --no-fund >"$RUNNER_TEMP/npm.log" 2>&1 || { echo 'NPM_CI=FAIL'; exit 1; }
+          npx playwright install --with-deps chromium >"$RUNNER_TEMP/browser-install.log" 2>&1 || { echo 'BROWSER_INSTALL=FAIL'; exit 1; }
+          echo 'NPM_CI_AND_CHROMIUM=PASS'
+      - name: Targeted tests and responsive browser inspection
+        working-directory: source/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          npx vitest run src/marketplace/MarketplaceHub.test.tsx src/marketplace/provider-entry.test.ts --reporter=dot >"$RUNNER_TEMP/vitest.log" 2>&1 || { echo 'VITEST=FAIL'; exit 1; }
+          echo 'HUB_VITEST=PASS'
+          npx playwright test --config playwright.hub.config.ts tests/work20-browser/marketplace-hub.spec.ts >"$RUNNER_TEMP/hub-browser.log" 2>&1 || {
+            echo 'HUB_CHROMIUM=FAIL'
+            grep -E 'failed|Error:|Expected:|Received:|Timeout|Locator:' "$RUNNER_TEMP/hub-browser.log" | tail -15 | cut -c1-170 || true
+            exit 1;
+          }
+          echo 'HUB_CHROMIUM=PASS'
+      - name: Build deterministic frontend and validate package locally
+        working-directory: source/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          python scripts/build-phone-web.py --source-sha 558d3b9e6458d217da3afe0e5cabbfe118dfbb62 >"$RUNNER_TEMP/build.log" 2>&1 || { echo 'PHONE_BUILD=FAIL'; exit 1; }
+          git add -- phone-web.json phone-web.tar.gz
+          git -c user.name='HamKar package runner' -c user.email='hamkar-ci@users.noreply.github.com' commit -m 'build(phone): mobile logo/card compactness at exact source'
+          test "$(git rev-parse HEAD^)" = "558d3b9e6458d217da3afe0e5cabbfe118dfbb62"
           python - <<'PY'
-          import json, runpy, subprocess
+          import json,runpy,subprocess,hashlib
           from pathlib import Path
-          source='4d4af21e7e180401705dffd9c57e18589e1af104'
-          target='6db61c169a63cda33520d4df6c7b11f988cb27d6'
-          diff=subprocess.check_output(['git','diff','--name-only',source,target],text=True).splitlines()
-          assert set(diff)=={'prototypes/mobile-workbench-v4/phone-web.json','prototypes/mobile-workbench-v4/phone-web.tar.gz'},diff
-          manifest=json.loads(Path('prototypes/mobile-workbench-v4/phone-web.json').read_text())
-          assert len(manifest['inputs'])==146
-          assert len(manifest['files'])==49
-          actual_source=runpy.run_path('prototypes/mobile-workbench-v4/scripts/basalam-current-update.py')['verify_target_web'](target)
-          assert actual_source==source
-          print('EXACT_COMMIT_TARGET_PREFLIGHT=PASS')
-          print('ARCHIVE_SHA256='+manifest['archive_sha256'])
-          print('FRONTEND_INPUTS=146 ARCHIVE_MEMBERS=49')
-          print('NO_INSTALL_NO_PROVIDER_IO=true')
+          root=Path('.');m=json.loads((root/'phone-web.json').read_text())
+          assert m['build_source_sha']=='558d3b9e6458d217da3afe0e5cabbfe118dfbb62'
+          assert len(m['inputs'])==149,len(m['inputs'])
+          assert len(m['files'])>=49
+          tar=root/'phone-web.tar.gz'; assert hashlib.sha256(tar.read_bytes()).hexdigest()==m['archive_sha256']
+          result=runpy.run_path('scripts/basalam-current-update.py')['verify_target_web'](subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
+          assert result=='558d3b9e6458d217da3afe0e5cabbfe118dfbb62'
+          print('LOCAL_EXACT_PACKAGE_PREFLIGHT=PASS')
+          print('INPUTS='+str(len(m['inputs']))+' MEMBERS='+str(len(m['files'])))
+          print('SHA256='+m['archive_sha256'])
+          print('BYTES='+str(tar.stat().st_size))
           PY
-      - name: Governance boundaries
+      - name: Encrypt non-public package and manifest for controlled transfer
+        working-directory: source/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cipher"
+          cat >"$RUNNER_TEMP/pub.pem" <<'PEM'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAqG0/aWyvjg9k/rG53joY
+          48o+woxHTG3LTu3yWfTvD9TaiLpsevE+ylTJ9qt+XeKYMYBAYEuHhLR1VQy0rTns
+          zIp3xF68k5HE+3uWt5KINCNiFOG39G4Z6Fp4e04mcllTVx1QhoxCAsUfuXCpKNyS
+          SQ5Rg5FyhM20kcv5XX0ujwpdjMG/rvBjrac5jfy1uJjCJnCogVUJjlMBUEj5ofZY
+          qdMyXEgwfhJqaFW6JxZwxmKY3upzZNyPPAejal4IQ36gbHLjWt3NQubI9uUWOB57
+          aVaLrKXj1bADgZ/st8GYaXJzs/9HnlA5lEDGfuv+2qJWjP65Cz4wNKOw6a2wnhPn
+          V8caoLcXVqZcC4485+Uz4X4T0pnjgle96zqpPx6axad2uwEhN3hMFJtSHTbe00Hz
+          eXPR6anXaP2l4hxU9z7+DKfcuJvgop+lmwaH7cxN0S/F14FPOUqgA6mthvaY7hB8
+          tKpvtIydu7Pf55SvFrQXqMM3o/g7fTmdM8wqSPo8fGy7AgMBAAE=
+          -----END PUBLIC KEY-----
+          PEM
+          tar -cf "$RUNNER_TEMP/package.tar" phone-web.json phone-web.tar.gz
+          openssl rand -base64 32 > "$RUNNER_TEMP/aes.pass"
+          openssl pkeyutl -encrypt -pubin -inkey "$RUNNER_TEMP/pub.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in "$RUNNER_TEMP/aes.pass" -out "$RUNNER_TEMP/cipher/key.rsa"
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:"$RUNNER_TEMP/aes.pass" -in "$RUNNER_TEMP/package.tar" -out "$RUNNER_TEMP/cipher/package.tar.enc"
+          echo 'PRIVATE_PACKAGE_ENCRYPTED=PASS'
+      - name: Store encrypted package only
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-pr145-mobile-logo-encrypted
+          path: ${{ runner.temp }}/cipher
+          retention-days: 1
+          if-no-files-found: error
+      - name: Store synthetic screenshots only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-pr145-mobile-logo-synthetic-screens
+          path: source/prototypes/mobile-workbench-v4/evidence/marketplace-hub-*.png
+          if-no-files-found: ignore
+      - name: Report boundaries
         if: always()
         run: |
-          echo 'OPERATIONAL_GATES=0/7_NOT_PROVEN'
-          echo 'PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY'
+          echo 'NO_PUBLIC_SOURCE_OR_PLAIN_PACKAGE=true'
+          echo 'NO_TERMUX_OR_PROVIDER_IO=true'
+          echo 'OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY'

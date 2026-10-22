@@ -1,4 +1,4 @@
-name: HamKar PR145 compact card package final target preflight
+name: HamKar PR145 compact mobile cards browser-only QA
 on:
   push:
     branches:
@@ -6,47 +6,55 @@ on:
 permissions:
   contents: read
 jobs:
-  exact-package-check:
+  browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 9
     steps:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 06605e5b03a7f446904f0f918215f2e5ce87ab8c
+          ref: 5411995c45350248b97d73e6bf947ffc8dcbffb1
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
-          fetch-depth: 0
           persist-credentials: false
           path: source
-      - name: Check exact final commit and remove remote
+      - name: Verify exact private source
         run: |
           set -euo pipefail
-          test "$(git -C source rev-parse HEAD)" = "06605e5b03a7f446904f0f918215f2e5ce87ab8c"
+          test "$(git -C source rev-parse HEAD)" = "5411995c45350248b97d73e6bf947ffc8dcbffb1"
           git -C source remote remove origin
-          echo 'EXACT_TARGET_CHECKOUT=PASS'
-      - name: Verify original updater package gates without installation
-        working-directory: source
+          echo 'EXACT_SOURCE=PASS'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install only headless Chromium and locked frontend dependencies
+        working-directory: source/prototypes/mobile-workbench-v4
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import subprocess,runpy,json
-          from pathlib import Path
-          source='5411995c45350248b97d73e6bf947ffc8dcbffb1';target='06605e5b03a7f446904f0f918215f2e5ce87ab8c'
-          names=subprocess.check_output(['git','diff','--name-only',source,target],text=True).splitlines()
-          assert set(names)=={'prototypes/mobile-workbench-v4/phone-web.json','prototypes/mobile-workbench-v4/phone-web.tar.gz'},names
-          manifest=json.loads(Path('prototypes/mobile-workbench-v4/phone-web.json').read_text())
-          assert manifest['build_source_sha']==source
-          assert len(manifest['inputs'])==149
-          assert len(manifest['files'])==52
-          verified=runpy.run_path('prototypes/mobile-workbench-v4/scripts/basalam-current-update.py')['verify_target_web'](target)
-          assert verified==source
-          print('EXACT_COMMIT_TARGET_PREFLIGHT=PASS')
-          print('ARCHIVE_SHA256='+manifest['archive_sha256'])
-          print('FRONTEND_INPUTS=149 ARCHIVE_MEMBERS=52')
-          print('NO_INSTALL_NO_PROVIDER_IO=true')
-          PY
+          npm ci --no-audit --no-fund >"$RUNNER_TEMP/npm.log" 2>&1 || { echo 'NPM_CI=FAIL'; exit 1; }
+          npx playwright install chromium --only-shell >"$RUNNER_TEMP/chromium.log" 2>&1 || { echo 'CHROMIUM_DOWNLOAD=FAIL'; exit 1; }
+          echo 'HEADLESS_CHROMIUM_READY=PASS'
+      - name: Run small browser suite, no real Provider requests
+        working-directory: source/prototypes/mobile-workbench-v4
+        run: |
+          set -euo pipefail
+          rm -f evidence/marketplace-hub-*.png
+          npx playwright test --config playwright.hub.config.ts tests/work20-browser/marketplace-hub.spec.ts --reporter=list >"$RUNNER_TEMP/qa.log" 2>&1 || {
+             echo 'MOBILE_BROWSER=FAIL'
+             grep -E 'failed|Expected:|Received:|Error:' "$RUNNER_TEMP/qa.log" | tail -16 | cut -c1-180 || true
+             exit 1
+          }
+          echo 'MOBILE_BROWSER=PASS'
+          grep -E '[0-9]+ passed' "$RUNNER_TEMP/qa.log" | tail -1 || true
+      - name: Publish only synthetic screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-pr145-compact-synthetic-mobile
+          path: source/prototypes/mobile-workbench-v4/evidence/marketplace-hub-*.png
+          retention-days: 1
+          if-no-files-found: ignore
       - name: Governance
         if: always()
         run: |
-          echo 'OPERATIONAL_GATES=0/7_NOT_PROVEN'
-          echo 'PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY'
+          echo 'NO_LIVE_PROVIDER_OR_TERMUX_OPERATION=true'
+          echo 'OPERATIONAL_GATES=0/7_NOT_PROVEN PHASE3=PARTIAL DEPLOYMENT=DO_NOT_DEPLOY'

@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: df5e061ac41f9a76419f592b516fec2103e4ff65
+          ref: 502579e3160aadbe2d2aa77522146f6e11eadaa0
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 2
@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C source rev-parse HEAD)" = "df5e061ac41f9a76419f592b516fec2103e4ff65"
+          test "$(git -C source rev-parse HEAD)" = "502579e3160aadbe2d2aa77522146f6e11eadaa0"
           git -C source remote remove origin
           echo 'PRIVATE_SOURCE_PIN=VERIFIED'
       - uses: actions/setup-node@v4
@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/build-phone-web.py --source-sha df5e061ac41f9a76419f592b516fec2103e4ff65 >"$RUNNER_TEMP/build-private.log" 2>&1 || {
+          python scripts/build-phone-web.py --source-sha 502579e3160aadbe2d2aa77522146f6e11eadaa0 >"$RUNNER_TEMP/build-private.log" 2>&1 || {
             echo 'PHONE_BUILD=FAIL (private log withheld)'; exit 1;
           }
           echo 'PHONE_BUILD=PASS'
@@ -71,12 +71,12 @@ jobs:
           test "$(git diff --cached --name-only | wc -l)" -eq 2
           test "$(git diff --name-only | wc -l)" -eq 0
           git -c user.name='HamKar CI package' -c user.email='hamkar-ci@users.noreply.github.com' commit -m 'build(phone): owner-brand marketplace update at df5e061'
-          test "$(git rev-parse HEAD^)" = "df5e061ac41f9a76419f592b516fec2103e4ff65"
+          test "$(git rev-parse HEAD^)" = "502579e3160aadbe2d2aa77522146f6e11eadaa0"
           python - <<'PY'
           import hashlib,json,runpy
           from pathlib import Path
           m=json.loads(Path('prototypes/mobile-workbench-v4/phone-web.json').read_text())
-          assert m['build_source_sha']=='df5e061ac41f9a76419f592b516fec2103e4ff65'
+          assert m['build_source_sha']=='502579e3160aadbe2d2aa77522146f6e11eadaa0'
           assert len(m['inputs'])==146, len(m['inputs'])
           assert len(m['files'])>=49, len(m['files'])
           print('FRONTEND_INPUTS='+str(len(m['inputs'])))

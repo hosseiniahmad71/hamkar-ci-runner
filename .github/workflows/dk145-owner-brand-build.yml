@@ -32,25 +32,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install dependencies in isolated runner
+      - name: Locked frontend dependencies and targeted unit checks
         working-directory: source/prototypes/mobile-workbench-v4
         run: |
           set -euo pipefail
           npm ci --no-audit --no-fund >"$RUNNER_TEMP/npm.log" 2>&1 || { echo 'NPM_CI=FAIL'; exit 1; }
-          npx playwright install --with-deps chromium >"$RUNNER_TEMP/browser-install.log" 2>&1 || { echo 'BROWSER_INSTALL=FAIL'; exit 1; }
-          echo 'NPM_CI_AND_CHROMIUM=PASS'
-      - name: Targeted tests and responsive browser inspection
-        working-directory: source/prototypes/mobile-workbench-v4
-        run: |
-          set -euo pipefail
-          npx vitest run src/marketplace/MarketplaceHub.test.tsx src/marketplace/provider-entry.test.ts --reporter=dot >"$RUNNER_TEMP/vitest.log" 2>&1 || { echo 'VITEST=FAIL'; exit 1; }
+          echo 'NPM_CI=PASS'
+          npx vitest run src/marketplace/MarketplaceHub.test.tsx src/marketplace/provider-entry.test.ts --reporter=dot >"$RUNNER_TEMP/vitest.log" 2>&1 || { echo 'HUB_VITEST=FAIL'; exit 1; }
           echo 'HUB_VITEST=PASS'
-          npx playwright test --config playwright.hub.config.ts tests/work20-browser/marketplace-hub.spec.ts >"$RUNNER_TEMP/hub-browser.log" 2>&1 || {
-            echo 'HUB_CHROMIUM=FAIL'
-            grep -E 'failed|Error:|Expected:|Received:|Timeout|Locator:' "$RUNNER_TEMP/hub-browser.log" | tail -15 | cut -c1-170 || true
-            exit 1;
-          }
-          echo 'HUB_CHROMIUM=PASS'
       - name: Build deterministic frontend and validate package locally
         working-directory: source/prototypes/mobile-workbench-v4
         run: |

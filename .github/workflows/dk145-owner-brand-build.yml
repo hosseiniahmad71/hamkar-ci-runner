@@ -88,19 +88,36 @@ jobs:
           print('EXACT_COMMIT_TARGET_PREFLIGHT=PASS')
           PY
           echo "PACKAGE_COMMIT_SHA=$(git rev-parse HEAD)"
-      - name: Push verified package to existing private feature branch without force
+      - name: Encrypt built update for private local delivery
         working-directory: source
         shell: bash
-        env:
-          HAMKAR_WRITE_TOKEN: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "$HAMKAR_WRITE_TOKEN"
-          auth=$(printf 'x-access-token:%s' "$HAMKAR_WRITE_TOKEN" | base64 -w0)
-          git -c credential.helper= -c "http.extraheader=AUTHORIZATION: basic $auth" \
-            push https://github.com/hosseiniahmad71/Hamkar-erp.git HEAD:refs/heads/feature/digikala-catalog-responsive-f95-20261020 >/dev/null
-          echo 'PRIVATE_BRANCH_PACKAGE_PUSH=PASS'
-          echo "TARGET_PACKAGE_COMMIT=$(git rev-parse HEAD)"
+          mkdir -p "$RUNNER_TEMP/encrypted-delivery"
+          cat > "$RUNNER_TEMP/recipient-public.pem" <<'PEM'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAmxm5+P21fIqz9vTqdsby
+          wIE38p3yU6U1o9IY1Ax/kmzHV5/0MLNp7LXIfFwfx9mQBdy0Q3yVAGgzySWdGnBU
+          kHM1sra7np7+GgTTmnihDYgQom3p9A5Hvaxbn1jNQwDBNV0eIN4wFkyBojQiT9N9
+          SbRLjV3/91VEf3f7FTeAVRCKOGYjROBipHuf829emdCi59POma0WftCKI3OY6P0l
+          LJk9NruS6ViL1TB4JCZHjt3KRxS1RoE4n6ECXuaYvPQnIJhcBQQZKpsoUdKr3nt1
+          1ruW88O5xU2jTyMBbZbsHdrOYJ0S5mNGnpalE57/KzIWHVmWtA2FBafOZNsnoMjA
+          hycN2Sshp+/+i+56VrAuUfyzjMaySobvZ3IbrvqCvflmkzfvAyt1NFhGReitnMtU
+          i92zxPNPj5PEJP4tLNC9HUpHTUxfpLRcQmzxmlQAFGCef7CCb150JXF+PK1EqywH
+          Qc1bcA7rypHIvmDp1v+hLOc45tQlPSiQETPGFo1QeLvPAgMBAAE=
+          -----END PUBLIC KEY-----
+          PEM
+          tar -C prototypes/mobile-workbench-v4 -cf "$RUNNER_TEMP/private-update.tar" phone-web.json phone-web.tar.gz
+          openssl rand -base64 32 >"$RUNNER_TEMP/key.pass"
+          openssl pkeyutl -encrypt -pubin -inkey "$RUNNER_TEMP/recipient-public.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -in "$RUNNER_TEMP/key.pass" -out "$RUNNER_TEMP/encrypted-delivery/key.rsa"
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass file:"$RUNNER_TEMP/key.pass" -in "$RUNNER_TEMP/private-update.tar" -out "$RUNNER_TEMP/encrypted-delivery/private-update.tar.enc"
+          echo 'ENCRYPTED_DELIVERY=PASS (no raw source or bundle in public artifact)'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-owner-brand-encrypted-update
+          path: ${{ runner.temp }}/encrypted-delivery
+          if-no-files-found: error
+          retention-days: 1
       - name: Report boundaries
         if: always()
         run: |

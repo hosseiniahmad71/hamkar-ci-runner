@@ -1,0 +1,92 @@
+name: HamKar DK146 isolated lab exact-SHA validation
+
+on:
+  push:
+    branches:
+      - ci/dk146-readonly-lab-exact-20261027
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dk146-isolated-exact-30a065db
+  cancel-in-progress: false
+
+jobs:
+  exact-sha-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TARGET_SHA: 30a065db71c3cb15dce5fc82f6cfb805f3935f54
+    steps:
+      - name: Checkout immutable private source (no persisted credential)
+        uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 30a065db71c3cb15dce5fc82f6cfb805f3935f54
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          path: hamkar
+          fetch-depth: 1
+
+      - name: Verify exact SHA and clear private remote
+        run: |
+          set -euo pipefail
+          test "$(git -C hamkar rev-parse HEAD)" = "$TARGET_SHA"
+          git -C hamkar remote remove origin
+          echo "VERIFIED_PRIVATE_SOURCE_SHA=$TARGET_SHA"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact frontend dependency lockfile
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: npm ci --no-audit --no-fund
+
+      - name: Test read-only cache scope and null/zero/missing boundaries
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: npx vitest run src/marketplace/DigikalaReadOnlyLab.test.tsx
+
+      - name: Build exact-source phone assets and manifest
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: python3 scripts/build-phone-web.py --source-sha "$TARGET_SHA"
+
+      - name: Verify independent phone archive against source manifest
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,tarfile
+          from pathlib import Path
+          import runpy
+          build=runpy.run_path('scripts/build-phone-web.py')
+          root,inputs=build['ROOT'],build['inputs']
+          doc=json.loads(Path('phone-web.json').read_text())
+          assert doc['scope']=='ISOLATED_PREVIEW'
+          assert doc['build_source_sha']=='30a065db71c3cb15dce5fc82f6cfb805f3935f54'
+          assert doc['inputs']=={p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs()}
+          archive=Path('phone-web.tar.gz')
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==doc['archive_sha256']
+          with tarfile.open(archive,'r:gz') as tar:
+              members=tar.getmembers()
+              assert len(members)==len(doc['files'])
+              assert set(m.name for m in members)==set(doc['files'])
+              for m in members:
+                  assert m.isfile() and not m.issym() and not m.islnk()
+                  assert hashlib.sha256(tar.extractfile(m).read()).hexdigest()==doc['files'][m.name]
+          print('EXACT_SHA_BUILD_AND_ARCHIVE_VALIDATED')
+          PY
+
+      - name: Upload isolated preview package for review only
+        uses: actions/upload-artifact@v4
+        with:
+          name: dk146-readonly-lab-${{ env.TARGET_SHA }}
+          path: |
+            hamkar/prototypes/mobile-workbench-v4/phone-web.json
+            hamkar/prototypes/mobile-workbench-v4/phone-web.tar.gz
+          retention-days: 7
+          if-no-files-found: error

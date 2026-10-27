@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TARGET_SHA: 62a622392a81e2169e9b3471bedbf894c27c8ddc
+      TARGET_SHA: 4cc546d07560efb67b4455e5dda4e5d3268f13cb
     steps:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 62a622392a81e2169e9b3471bedbf894c27c8ddc
+          ref: 4cc546d07560efb67b4455e5dda4e5d3268f13cb
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 1

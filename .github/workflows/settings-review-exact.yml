@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TARGET_SHA: b89457b3027c345885c0282c27f484cd8e8e499e
+      TARGET_SHA: b2002a90759b092bd1a0c96ac487eb91a46afb16
     steps:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: b89457b3027c345885c0282c27f484cd8e8e499e
+          ref: b2002a90759b092bd1a0c96ac487eb91a46afb16
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 1
@@ -41,7 +41,7 @@ jobs:
         run: |
           npx vitest run tests/original-calculator.test.ts tests/calculator-live.test.ts tests/work30-calculator.test.ts src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
           python3 scripts/test_ahmad_aligned_update.py
-          python3 -m pytest preview-api/test_runtime_version.py preview-api/test_static_disconnect.py -q
+          python3 -m pytest preview-api/test_digikala_review.py preview-api/test_runtime_version.py preview-api/test_static_disconnect.py -q
       - name: Typecheck and build exact source package
         working-directory: hamkar/prototypes/mobile-workbench-v4
         run: python3 scripts/build-phone-web.py --source-sha "$TARGET_SHA"
@@ -79,7 +79,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: hamkar-ahmad-aligned-${{ env.TARGET_SHA }}
+          name: hamkar-complete-product-review-${{ env.TARGET_SHA }}
           path: |
             hamkar/prototypes/mobile-workbench-v4/phone-web.json
             hamkar/prototypes/mobile-workbench-v4/phone-web.tar.gz

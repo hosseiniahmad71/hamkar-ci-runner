@@ -1,4 +1,4 @@
-name: HamKar Settings review - verified mobile delivery
+name: HamKar Ahmad update - original calculator plus Settings review
 on:
   push:
     branches: [ci/settings-review-20261027]
@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TARGET_SHA: fd0fe439d14eabcb8f2c22a9b480fe8aa5b427ed
+      TARGET_SHA: b89457b3027c345885c0282c27f484cd8e8e499e
     steps:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: fd0fe439d14eabcb8f2c22a9b480fe8aa5b427ed
+          ref: b89457b3027c345885c0282c27f484cd8e8e499e
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 1
@@ -39,9 +39,9 @@ jobs:
       - name: UI and delivery regressions
         working-directory: hamkar/prototypes/mobile-workbench-v4
         run: |
-          npx vitest run src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
-          python3 scripts/test_settings_review_delivery.py
-          python3 -m pytest preview-api/test_settings_review_delivery.py preview-api/test_runtime_version.py preview-api/test_static_disconnect.py -q
+          npx vitest run tests/original-calculator.test.ts tests/calculator-live.test.ts tests/work30-calculator.test.ts src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
+          python3 scripts/test_ahmad_aligned_update.py
+          python3 -m pytest preview-api/test_runtime_version.py preview-api/test_static_disconnect.py -q
       - name: Typecheck and build exact source package
         working-directory: hamkar/prototypes/mobile-workbench-v4
         run: python3 scripts/build-phone-web.py --source-sha "$TARGET_SHA"
@@ -50,10 +50,10 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npx playwright test --config playwright.review.config.ts
+          npx playwright test --config playwright.work20.config.ts tests/work20-browser/original-calculator.spec.ts
       - name: Verify manifest and actual served bytes through both ports
         working-directory: hamkar/prototypes/mobile-workbench-v4
         env:
-          HAMKAR_SETTINGS_REVIEW_ONLY: '1'
           HAMKAR_BASALAM_OBSERVE_ONLY: '1'
         run: |
           set -euo pipefail
@@ -70,7 +70,7 @@ jobs:
           python3 - <<'PY'
           import runpy,pathlib,json,os
           root=pathlib.Path.cwd()
-          proof=runpy.run_path('scripts/settings-review-delivery.py')['verify_served'](root,os.environ['TARGET_SHA'])
+          proof=runpy.run_path('scripts/phone-web-proof.py')['verify_served'](root,os.environ['TARGET_SHA'])
           assert proof['frontend_source_sha']==os.environ['TARGET_SHA']
           assert proof['served_files']>0
           print(json.dumps(proof))
@@ -79,11 +79,12 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: hamkar-verified-settings-review-${{ env.TARGET_SHA }}
+          name: hamkar-ahmad-aligned-${{ env.TARGET_SHA }}
           path: |
             hamkar/prototypes/mobile-workbench-v4/phone-web.json
             hamkar/prototypes/mobile-workbench-v4/phone-web.tar.gz
             hamkar/prototypes/mobile-workbench-v4/evidence/review-*.png
+            hamkar/prototypes/mobile-workbench-v4/evidence/original-calculator-*.png
             hamkar/prototypes/mobile-workbench-v4/evidence/settings-review-served-proof.json
           if-no-files-found: error
           retention-days: 7

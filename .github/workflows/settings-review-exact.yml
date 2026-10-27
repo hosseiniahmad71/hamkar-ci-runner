@@ -1,32 +1,28 @@
-name: HamKar standalone Settings Test and Review - exact source build
+name: HamKar Settings review - verified mobile delivery
 on:
   push:
-    branches:
-      - ci/settings-review-20261027
+    branches: [ci/settings-review-20261027]
 permissions:
   contents: read
 jobs:
-  independent-settings-review:
+  verified-settings-delivery:
     runs-on: ubuntu-latest
-    timeout-minutes: 16
+    timeout-minutes: 20
     env:
-      TARGET_SHA: 5ec0f41e8697e7409181d6106dcc73e593d26964
+      TARGET_SHA: 62a622392a81e2169e9b3471bedbf894c27c8ddc
     steps:
-      - name: Read private immutable source only
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 5ec0f41e8697e7409181d6106dcc73e593d26964
+          ref: 62a622392a81e2169e9b3471bedbf894c27c8ddc
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 1
           path: hamkar
-      - name: Verify pinned source and remove private remote
+      - name: Verify immutable private source and remove remote
         run: |
-          set -euo pipefail
           test "$(git -C hamkar rev-parse HEAD)" = "$TARGET_SHA"
           git -C hamkar remote remove origin
-          echo "VERIFIED_SOURCE_SHA=$TARGET_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -35,45 +31,59 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install pinned dependencies
-        working-directory: hamkar/prototypes/mobile-workbench-v4
-        run: npm ci --no-audit --no-fund
-      - name: Run independent settings and old cache inspector regression tests
-        working-directory: hamkar/prototypes/mobile-workbench-v4
-        run: npx vitest run src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
-      - name: Exact SHA full frontend build
-        working-directory: hamkar/prototypes/mobile-workbench-v4
-        run: python3 scripts/build-phone-web.py --source-sha "$TARGET_SHA"
-      - name: Verify phone assets, manifest and separate Settings route
+      - name: Install locked dependencies
         working-directory: hamkar/prototypes/mobile-workbench-v4
         run: |
+          npm ci --no-audit --no-fund
+          python3 -m pip install -r preview-api/requirements.txt
+      - name: UI and delivery regressions
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          npx vitest run src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
+          python3 scripts/test_settings_review_delivery.py
+          python3 -m pytest preview-api/test_settings_review_delivery.py preview-api/test_runtime_version.py preview-api/test_static_disconnect.py -q
+      - name: Typecheck and build exact source package
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: python3 scripts/build-phone-web.py --source-sha "$TARGET_SHA"
+      - name: Install browser and test RTL review routes
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test --config playwright.review.config.ts
+      - name: Verify manifest and actual served bytes through both ports
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        env:
+          HAMKAR_SETTINGS_REVIEW_ONLY: '1'
+          HAMKAR_BASALAM_OBSERVE_ONLY: '1'
+        run: |
+          set -euo pipefail
+          export HAMKAR_PREVIEW_DATA_DIR="$(mktemp -d)"
+          python3 scripts/work20-preview.py start --web-mode static --no-install > /tmp/hamkar-delivery-proof.log 2>&1 &
+          task_pid=$!
+          trap 'kill "$task_pid" 2>/dev/null || true; wait "$task_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 100); do
+            if grep -q SERVED_BYTES_VERIFIED /tmp/hamkar-delivery-proof.log; then break; fi
+            if ! kill -0 "$task_pid" 2>/dev/null; then cat /tmp/hamkar-delivery-proof.log; exit 1; fi
+            sleep 0.2
+          done
+          grep SERVED_BYTES_VERIFIED /tmp/hamkar-delivery-proof.log
           python3 - <<'PY'
-          import pathlib,json,hashlib,tarfile,runpy,os
+          import runpy,pathlib,json,os
           root=pathlib.Path.cwd()
-          doc=json.loads((root/'phone-web.json').read_text())
-          assert doc['build_source_sha']==os.environ['TARGET_SHA']
-          assert doc['scope']=='ISOLATED_PREVIEW'
-          build=runpy.run_path('scripts/build-phone-web.py')
-          assert doc['inputs']=={p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in build['inputs'](root)}
-          archive=root/'phone-web.tar.gz'
-          assert hashlib.sha256(archive.read_bytes()).hexdigest()==doc['archive_sha256']
-          with tarfile.open(archive,'r:gz') as handle:
-            members=handle.getmembers()
-            assert len(members)==len(doc['files'])
-            assert {m.name for m in members}==set(doc['files'])
-            for member in members:
-              assert member.isfile() and not member.issym() and not member.islnk()
-              assert hashlib.sha256(handle.extractfile(member).read()).hexdigest()==doc['files'][member.name]
-          assets=list((root/'dist/assets').glob('*.js'))
-          assert any('تست و بررسی'.encode() in p.read_bytes() for p in assets), 'Missing Settings entrypoint in built scripts'
-          print('VERIFIED: exact SHA, Settings entrypoint, archive and hashes')
+          proof=runpy.run_path('scripts/settings-review-delivery.py')['verify_served'](root,os.environ['TARGET_SHA'])
+          assert proof['frontend_source_sha']==os.environ['TARGET_SHA']
+          assert proof['served_files']>0
+          print(json.dumps(proof))
+          (root/'evidence').mkdir(exist_ok=True)
+          (root/'evidence/settings-review-served-proof.json').write_text(json.dumps(proof,indent=2))
           PY
-      - name: Publish CI-only preview package artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: hamkar-settings-review-${{ env.TARGET_SHA }}
+          name: hamkar-verified-settings-review-${{ env.TARGET_SHA }}
           path: |
             hamkar/prototypes/mobile-workbench-v4/phone-web.json
             hamkar/prototypes/mobile-workbench-v4/phone-web.tar.gz
-          retention-days: 7
+            hamkar/prototypes/mobile-workbench-v4/evidence/review-*.png
+            hamkar/prototypes/mobile-workbench-v4/evidence/settings-review-served-proof.json
           if-no-files-found: error
+          retention-days: 7

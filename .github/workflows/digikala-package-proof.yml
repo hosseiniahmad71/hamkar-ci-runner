@@ -1,0 +1,72 @@
+name: HamKar exact packaged DigiKala delivery proof
+on:
+  push:
+    branches: [ci/digikala-strategy-package-20261028]
+permissions:
+  contents: read
+jobs:
+  packaged-byte-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_SHA: 4689f876885cbdaf3d23d3c38ded1e3f23add9b7
+      SOURCE_SHA: d7e06c10bc0a1426db508f69fe9e6fb0ee0a02d1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 4689f876885cbdaf3d23d3c38ded1e3f23add9b7
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 2
+          path: hamkar
+      - name: Pin exact package and remove remote
+        run: |
+          test "$(git -C hamkar rev-parse HEAD)" = "$TARGET_SHA"
+          git -C hamkar remote remove origin
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned runtime
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: python3 -m pip install -r preview-api/requirements.txt
+      - name: Validate updater target and serve committed assets
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        env:
+          HAMKAR_BASALAM_OBSERVE_ONLY: '1'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import runpy,os
+          source=runpy.run_path('scripts/basalam-current-update.py')['verify_target_web'](os.environ['TARGET_SHA'])
+          assert source==os.environ['SOURCE_SHA']
+          print('COMMITTED_UPDATER_TARGET_VERIFIED',os.environ['TARGET_SHA'],source)
+          PY
+          export HAMKAR_PREVIEW_DATA_DIR="$(mktemp -d)"
+          python3 scripts/work20-preview.py start --web-mode static --no-install > /tmp/hamkar-package-proof.log 2>&1 &
+          task_pid=$!
+          trap 'kill "$task_pid" 2>/dev/null || true; wait "$task_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 100); do
+            if grep -q SERVED_BYTES_VERIFIED /tmp/hamkar-package-proof.log; then break; fi
+            if ! kill -0 "$task_pid" 2>/dev/null; then cat /tmp/hamkar-package-proof.log; exit 1; fi
+            sleep 0.2
+          done
+          grep SERVED_BYTES_VERIFIED /tmp/hamkar-package-proof.log
+          python3 - <<'PY'
+          import runpy,pathlib,json,os
+          root=pathlib.Path.cwd()
+          proof=runpy.run_path('scripts/phone-web-proof.py')['verify_served'](root,os.environ['TARGET_SHA'])
+          assert proof['frontend_source_sha']==os.environ['SOURCE_SHA']
+          assert proof['source_relationship']=='VERIFIED_PACKAGE_DESCENDANT'
+          assert proof['archive_sha256']=='19fa054682058bbde4403fb8bcaf8c1206aae57ff27a9acd0ab4f848ee5971b6'
+          assert proof['served_files']==70
+          print(json.dumps(proof))
+          (root/'evidence').mkdir(exist_ok=True)
+          (root/'evidence/digikala-package-proof.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digikala-package-proof-${{ env.TARGET_SHA }}
+          path: hamkar/prototypes/mobile-workbench-v4/evidence/digikala-package-proof.json
+          if-no-files-found: error
+          retention-days: 7

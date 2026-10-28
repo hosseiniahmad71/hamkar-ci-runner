@@ -1,0 +1,93 @@
+name: HamKar DigiKala bounds and owner strategy
+on:
+  push:
+    branches: [ci/digikala-strategy-20261028]
+permissions:
+  contents: read
+jobs:
+  verified-strategy-delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TARGET_SHA: 9c29c1eb8732c4365687a43f93226f63d9290461
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: hosseiniahmad71/Hamkar-erp
+          ref: 9c29c1eb8732c4365687a43f93226f63d9290461
+          token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 1
+          path: hamkar
+      - name: Verify immutable private source and remove remote
+        run: |
+          test "$(git -C hamkar rev-parse HEAD)" = "$TARGET_SHA"
+          git -C hamkar remote remove origin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: hamkar/prototypes/mobile-workbench-v4/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          npm ci --no-audit --no-fund
+          python3 -m pip install -r preview-api/requirements.txt
+      - name: UI and delivery regressions
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          npx vitest run src/marketplace/DigikalaProduct.test.tsx src/marketplace/DigikalaVariantEditor.test.tsx src/marketplace/digikala-costs.test.ts tests/original-calculator.test.ts tests/calculator-live.test.ts tests/work30-calculator.test.ts src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
+          python3 scripts/test_ahmad_aligned_update.py
+          python3 -m pytest preview-api/test_digikala_strategy.py preview-api/test_digikala_edits.py preview-api/test_digikala_workbench.py preview-api/test_digikala_staged_detail.py preview-api/test_data_tools.py preview-api/test_digikala_review.py preview-api/test_runtime_version.py preview-api/test_static_disconnect.py -q
+      - name: Typecheck and build exact source package
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: python3 scripts/build-phone-web.py --source-sha "$TARGET_SHA"
+      - name: Install browser and test RTL review routes
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test --config playwright.strategy.config.ts
+          npx playwright test --config playwright.review.config.ts
+          npx playwright test --config playwright.work20.config.ts tests/work20-browser/original-calculator.spec.ts
+      - name: Verify manifest and actual served bytes through both ports
+        working-directory: hamkar/prototypes/mobile-workbench-v4
+        env:
+          HAMKAR_BASALAM_OBSERVE_ONLY: '1'
+        run: |
+          set -euo pipefail
+          export HAMKAR_PREVIEW_DATA_DIR="$(mktemp -d)"
+          python3 scripts/work20-preview.py start --web-mode static --no-install > /tmp/hamkar-delivery-proof.log 2>&1 &
+          task_pid=$!
+          trap 'kill "$task_pid" 2>/dev/null || true; wait "$task_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 100); do
+            if grep -q SERVED_BYTES_VERIFIED /tmp/hamkar-delivery-proof.log; then break; fi
+            if ! kill -0 "$task_pid" 2>/dev/null; then cat /tmp/hamkar-delivery-proof.log; exit 1; fi
+            sleep 0.2
+          done
+          grep SERVED_BYTES_VERIFIED /tmp/hamkar-delivery-proof.log
+          python3 - <<'PY'
+          import runpy,pathlib,json,os
+          root=pathlib.Path.cwd()
+          proof=runpy.run_path('scripts/phone-web-proof.py')['verify_served'](root,os.environ['TARGET_SHA'])
+          assert proof['frontend_source_sha']==os.environ['TARGET_SHA']
+          assert proof['served_files']>0
+          print(json.dumps(proof))
+          (root/'evidence').mkdir(exist_ok=True)
+          (root/'evidence/settings-review-served-proof.json').write_text(json.dumps(proof,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hamkar-digikala-strategy-${{ env.TARGET_SHA }}
+          path: |
+            hamkar/prototypes/mobile-workbench-v4/phone-web.json
+            hamkar/prototypes/mobile-workbench-v4/phone-web.tar.gz
+            hamkar/prototypes/mobile-workbench-v4/evidence/strategy-*.png
+            hamkar/prototypes/mobile-workbench-v4/evidence/bounds-*.png
+            hamkar/prototypes/mobile-workbench-v4/evidence/review-*.png
+            hamkar/prototypes/mobile-workbench-v4/evidence/original-calculator-*.png
+            hamkar/prototypes/mobile-workbench-v4/evidence/settings-review-served-proof.json
+          if-no-files-found: error
+          retention-days: 7

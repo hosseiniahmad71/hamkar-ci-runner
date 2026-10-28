@@ -1,4 +1,4 @@
-name: HamKar strategy library and production cleanup
+name: HamKar DigiKala bounds and owner strategy
 on:
   push:
     branches: [ci/digikala-strategy-20261028]
@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TARGET_SHA: 5b543fd54c9deb302d7f3659bdb58b26731eebd4
+      TARGET_SHA: db833de377f9edbfd06ec9ce7dd868e07a74c3fb
     steps:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 5b543fd54c9deb302d7f3659bdb58b26731eebd4
+          ref: db833de377f9edbfd06ec9ce7dd868e07a74c3fb
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 1
@@ -39,7 +39,7 @@ jobs:
       - name: UI and delivery regressions
         working-directory: hamkar/prototypes/mobile-workbench-v4
         run: |
-          npx vitest run src/marketplace/DigikalaProduct.test.tsx src/marketplace/DigikalaVariantEditor.test.tsx src/marketplace/digikala-costs.test.ts tests/original-calculator.test.ts tests/calculator-live.test.ts tests/work30-calculator.test.ts src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
+          npx vitest run tests/chat05-operations.test.ts tests/chat07-freshness.test.ts tests/chat11-ux-v6.test.ts tests/integration.test.ts tests/marketplace.test.ts src/marketplace/DigikalaProduct.test.tsx src/marketplace/DigikalaVariantEditor.test.tsx src/marketplace/digikala-costs.test.ts tests/original-calculator.test.ts tests/calculator-live.test.ts tests/work30-calculator.test.ts src/catalog/SettingsReview.test.tsx src/marketplace/DigikalaReadOnlyLab.test.tsx
           python3 scripts/test_ahmad_aligned_update.py
           python3 -m pytest preview-api/test_strategy_library.py preview-api/test_digikala_replay.py preview-api/test_digikala_strategy.py preview-api/test_digikala_edits.py preview-api/test_digikala_workbench.py preview-api/test_digikala_staged_detail.py preview-api/test_data_tools.py preview-api/test_digikala_review.py preview-api/test_runtime_version.py preview-api/test_static_disconnect.py -q
       - name: Typecheck and build exact source package

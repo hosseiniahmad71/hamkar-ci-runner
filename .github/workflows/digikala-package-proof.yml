@@ -9,13 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      TARGET_SHA: 4689f876885cbdaf3d23d3c38ded1e3f23add9b7
-      SOURCE_SHA: d7e06c10bc0a1426db508f69fe9e6fb0ee0a02d1
+      TARGET_SHA: 212c870ddee81782aa4ef9a0f9f6946e6b6cadca
+      SOURCE_SHA: db833de377f9edbfd06ec9ce7dd868e07a74c3fb
     steps:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 4689f876885cbdaf3d23d3c38ded1e3f23add9b7
+          ref: 212c870ddee81782aa4ef9a0f9f6946e6b6cadca
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 2
@@ -58,8 +58,8 @@ jobs:
           proof=runpy.run_path('scripts/phone-web-proof.py')['verify_served'](root,os.environ['TARGET_SHA'])
           assert proof['frontend_source_sha']==os.environ['SOURCE_SHA']
           assert proof['source_relationship']=='VERIFIED_PACKAGE_DESCENDANT'
-          assert proof['archive_sha256']=='19fa054682058bbde4403fb8bcaf8c1206aae57ff27a9acd0ab4f848ee5971b6'
-          assert proof['served_files']==70
+          assert proof['archive_sha256']=='dfd5de96f3e674f69e07ee0e28312341a1c0c154ce9453b48fbd6986f0643adc'
+          assert proof['served_files']==67
           print(json.dumps(proof))
           (root/'evidence').mkdir(exist_ok=True)
           (root/'evidence/digikala-package-proof.json').write_text(json.dumps(proof,indent=2))

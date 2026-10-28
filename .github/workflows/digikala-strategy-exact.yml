@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TARGET_SHA: 9c29c1eb8732c4365687a43f93226f63d9290461
+      TARGET_SHA: d7e06c10bc0a1426db508f69fe9e6fb0ee0a02d1
     steps:
       - uses: actions/checkout@v4
         with:
           repository: hosseiniahmad71/Hamkar-erp
-          ref: 9c29c1eb8732c4365687a43f93226f63d9290461
+          ref: d7e06c10bc0a1426db508f69fe9e6fb0ee0a02d1
           token: ${{ secrets.HAMKAR_PRIVATE_REPO_TOKEN }}
           persist-credentials: false
           fetch-depth: 1
@@ -50,6 +50,7 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npx playwright test --config playwright.strategy.config.ts
+          npx playwright test --config playwright.work20.config.ts tests/work20-browser/digikala-mobile.spec.ts --grep 'missing legacy|cancel confirmation|failed POST|uncertain durable|detail save stays.*390|explicit operation state|explicitly different seller'
           npx playwright test --config playwright.review.config.ts
           npx playwright test --config playwright.work20.config.ts tests/work20-browser/original-calculator.spec.ts
       - name: Verify manifest and actual served bytes through both ports
